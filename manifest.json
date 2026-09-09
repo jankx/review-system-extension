@@ -1,0 +1,21 @@
+{
+    "name": "Review System",
+    "version": "1.0.0",
+    "description": "Mở rộng bình luận WordPress thành hệ thống đánh giá với star rating, pros/cons, bộ lọc, sắp xếp và tổng hợp đánh giá.",
+    "author": "Jankx",
+    "extension_id": "review-system",
+    "context": ["admin", "frontend", "ajax", "rest"],
+    "caller": {
+        "file": "ReviewSystemExtension.php",
+        "class": "Jankx\\Extensions\\ReviewSystem\\ReviewSystemExtension",
+        "method": "init"
+    },
+    "dependencies": {
+        "extensions": ["comment-rating"]
+    },
+    "requirements": {
+        "php": ">=7.4"
+    },
+    "auto_activate": true,
+    "settings_url": "admin.php?page=jankx-review-system"
+}

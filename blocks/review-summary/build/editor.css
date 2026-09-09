@@ -1,0 +1,45 @@
+.review-system-block-preview .review-system-summary__number {
+    font-size: 36px;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1;
+}
+
+.review-system-block-preview .review-system-star {
+    color: #d1d5db;
+    font-size: 18px;
+}
+
+.review-system-block-preview .review-system-dist-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 0;
+}
+
+.review-system-block-preview .review-system-dist-label {
+    font-size: 13px;
+    color: #475569;
+    min-width: 30px;
+    text-align: right;
+}
+
+.review-system-block-preview .review-system-dist-bar {
+    flex: 1;
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.review-system-block-preview .review-system-dist-fill {
+    height: 100%;
+    background: #f59e0b;
+    border-radius: 4px;
+}
+
+.review-system-block-preview .review-system-dist-count {
+    font-size: 12px;
+    color: #94a3b8;
+    min-width: 24px;
+}

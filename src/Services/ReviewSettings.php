@@ -1,0 +1,77 @@
+<?php
+
+namespace Jankx\Extensions\ReviewSystem\Services;
+
+class ReviewSettings
+{
+    const OPTION_ENABLED = 'review_system_enabled';
+    const OPTION_SHOW_PROS = 'review_system_show_pros';
+    const OPTION_SHOW_CONS = 'review_system_show_cons';
+    const OPTION_POST_TYPES = 'review_system_post_types';
+    const OPTION_SORT_DEFAULT = 'review_system_sort_default';
+
+    const META_PROS = '_jankx_review_pros';
+    const META_CONS = '_jankx_review_cons';
+
+    public function getOption(string $key, $default = null)
+    {
+        $themeMod = get_theme_mod($key);
+        if ($themeMod !== false && !is_null($themeMod)) {
+            return $themeMod;
+        }
+
+        $options = get_option('jankx_options', []);
+        if (is_array($options) && array_key_exists($key, $options)) {
+            return $options[$key];
+        }
+        return $default;
+    }
+
+    public function isEnabled(): bool
+    {
+        return (bool) $this->getOption(self::OPTION_ENABLED, 1);
+    }
+
+    public function showPros(): bool
+    {
+        return (bool) $this->getOption(self::OPTION_SHOW_PROS, 1);
+    }
+
+    public function showCons(): bool
+    {
+        return (bool) $this->getOption(self::OPTION_SHOW_CONS, 1);
+    }
+
+    public function getPostTypes(): array
+    {
+        $saved = $this->getOption(self::OPTION_POST_TYPES, null);
+        if ($saved === null) {
+            return ['tour', 'experience', 'place', 'product', 'post', 'page'];
+        }
+        if (!is_array($saved)) {
+            $saved = [$saved];
+        }
+        return array_values(array_filter(array_map('sanitize_text_field', $saved)));
+    }
+
+    public function getDefaultSort(): string
+    {
+        return sanitize_text_field($this->getOption(self::OPTION_SORT_DEFAULT, 'newest'));
+    }
+
+    public function isPostTypeSupported(string $postType): bool
+    {
+        return in_array($postType, $this->getPostTypes(), true);
+    }
+
+    public function getPostTypesForSelect(): array
+    {
+        $postTypes = get_post_types(['public' => true], 'objects');
+        $list = [];
+        foreach ($postTypes as $pt) {
+            $label = $pt->labels->singular_name ?? $pt->label ?? $pt->name;
+            $list[$pt->name] = sprintf('%s (%s)', $label, $pt->name);
+        }
+        return $list;
+    }
+}
