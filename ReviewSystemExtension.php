@@ -68,6 +68,16 @@ class ReviewSystemExtension extends AbstractExtension
         }
 
         add_action('init', [$this, 'registerBlocks']);
+        add_action('init', [$this, 'registerAccountSubPage'], 110);
+    }
+
+    public function registerAccountSubPage(): void
+    {
+        if (!class_exists('\Jankx\Extensions\MyAccount\MyAccountExtension')) {
+            return;
+        }
+
+        \Jankx\Extensions\MyAccount\MyAccountExtension::registerSubPageClass(new MyAccount\ReviewsSubPage());
     }
 
     public function registerBlocks(): void
@@ -76,6 +86,13 @@ class ReviewSystemExtension extends AbstractExtension
         if (!is_dir($blocksDir)) {
             return;
         }
+
+        $reviewBlocks = [
+            'jankx/account-tab-reviews' => Blocks\AccountTabReviewsBlock::class,
+            'jankx/reviews-my-reviews' => Blocks\ReviewsMyReviewsBlock::class,
+            'jankx/reviews-pending' => Blocks\ReviewsPendingBlock::class,
+            'jankx/reviews-completed' => Blocks\ReviewsCompletedBlock::class,
+        ];
 
         foreach (glob($blocksDir . '/*', GLOB_ONLYDIR) as $blockDir) {
             if (!file_exists($blockDir . '/block.json')) {
@@ -87,6 +104,15 @@ class ReviewSystemExtension extends AbstractExtension
 
             if ($blockName && !\WP_Block_Type_Registry::get_instance()->is_registered($blockName)) {
                 $args = [];
+                if (isset($reviewBlocks[$blockName])) {
+                    $blockClass = $reviewBlocks[$blockName];
+                    $block = new $blockClass($blockDir);
+                    $block->setBlockPath($blockDir);
+                    $block->boot();
+                    $block->register();
+                    continue;
+                }
+
                 if ($blockName === 'jankx/review-summary') {
                     $summaryBlock = new Blocks\ReviewSummaryBlock();
                     $args['render_callback'] = [$summaryBlock, 'render'];

@@ -1,0 +1,25 @@
+{
+    "$schema": "https://schemas.wp.org/trunk/block.json",
+    "apiVersion": 3,
+    "name": "jankx/account-tab-reviews",
+    "title": "Reviews Tab",
+    "category": "jankx",
+    "icon": "star-filled",
+    "description": "Display user's reviews and review-eligible orders.",
+    "textdomain": "jankx",
+    "editorScript": "file:./build/index.tsx.js",
+    "attributes": {
+        "jankxHideOnUltrawide": { "type": "boolean", "default": false },
+        "jankxHideOnPc": { "type": "boolean", "default": false },
+        "jankxHideOnTablet": { "type": "boolean", "default": false },
+        "jankxHideOnMobile": { "type": "boolean", "default": false },
+        "jankxFlexGrow": { "type": "boolean", "default": false }
+    },
+    "supports": {
+        "html": false,
+        "inserter": false,
+        "align": false,
+        "spacing": false
+    },
+    "allowedBlocks": ["jankx/reviews-my-reviews", "jankx/reviews-pending", "jankx/reviews-completed"]
+}
