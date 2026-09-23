@@ -89,12 +89,8 @@ class ReviewsPendingBlock extends Block
                     ? number_format($item['unit_price'], 0, ',', '.') . 'đ'
                     : '';
 
-                // Use the new review-form block URL pattern
-                $reviewUrl = add_query_arg([
-                    'jankx_review_action' => 'form',
-                    'order_id'            => $item['order']->id,
-                    'product_id'          => $item['product_id'],
-                ], get_permalink(get_option('jankx_my_account_page_id')));
+                // Link to product page, scroll to comment form
+                $reviewUrl = $productUrl . '#reviewform';
 
                 $output .= '<div class="jankx-review-item-card">';
                 $output .= '<div class="jankx-review-item-info">';

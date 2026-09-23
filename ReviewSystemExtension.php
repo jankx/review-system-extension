@@ -73,8 +73,20 @@ class ReviewSystemExtension extends AbstractExtension
         // Must use this hook like other extensions, NOT 'init' priority 110.
         add_action('jankx/my_account/register_sub_pages', [$this, 'registerAccountSubPage']);
 
+        // Change comment form ID to 'reviewform' so anchor links work.
+        add_filter('comment_form_defaults', [$this, 'setCommentFormId']);
+
         // Hook into star rating submissions to sync with review system.
         add_action('jankx/star_rating/submitted', [$this, 'on_star_rating_submitted'], 10, 4);
+    }
+
+    /**
+     * Set comment form ID to 'reviewform' for anchor linking.
+     */
+    public function setCommentFormId(array $defaults): array
+    {
+        $defaults['form_id'] = 'reviewform';
+        return $defaults;
     }
 
     /**
