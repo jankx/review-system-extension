@@ -24,90 +24,148 @@ class ReviewsCompletedBlock extends Block
         ]);
 
         $output = sprintf('<div %s>', $wrapperAttrs);
-        $output .= '<h3 class="jankx-section-title">' . esc_html__('Đơn đã đánh giá', 'jankx') . '</h3>';
+        $output .= '<h3 class="jankx-section-title">' . esc_html__('Sản phẩm đã đánh giá', 'jankx') . '</h3>';
 
         $orders = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$ordersTable} WHERE customer_id = %d AND status IN ('completed', 'done') ORDER BY created_at DESC LIMIT 20",
+            "SELECT * FROM {$ordersTable} WHERE customer_id = %d AND status IN ('completed', 'done') ORDER BY created_at DESC",
             $userId
         ));
 
         if (empty($orders)) {
             $output .= '<p class="jankx-empty-state">' . esc_html__('Bạn chưa có đơn hàng nào.', 'jankx') . '</p>';
-        } else {
-            $reviewedOrders = [];
-            foreach ($orders as $order) {
-                $items = json_decode($order->items, true);
-                if (!is_array($items)) {
-                    continue;
-                }
+            $output .= '</div>';
+            return $output;
+        }
 
-                $productIds = array_filter(array_map(function ($item) {
-                    return (int) ($item['product_id'] ?? 0);
-                }, $items));
+        // Collect all reviewed items across all orders
+        $reviewedItems = [];
 
-                if (empty($productIds)) {
-                    continue;
-                }
-
-                $reviewedProducts = [];
-                foreach ($productIds as $pid) {
-                    $comments = get_comments([
-                        'post_id' => $pid,
-                        'user_id' => $userId,
-                        'status' => 'approve',
-                        'meta_key' => RatingRepository::COMMENT_RATING_KEY,
-                        'number' => 1,
-                    ]);
-                    if (!empty($comments)) {
-                        $reviewedProducts[$pid] = $comments[0];
-                    }
-                }
-
-                if (!empty($reviewedProducts)) {
-                    $reviewedOrders[] = [
-                        'order' => $order,
-                        'reviews' => $reviewedProducts,
-                    ];
-                }
+        foreach ($orders as $order) {
+            $items = json_decode($order->items, true);
+            if (!is_array($items)) {
+                continue;
             }
 
-            if (empty($reviewedOrders)) {
-                $output .= '<p class="jankx-empty-state">' . esc_html__('Bạn chưa đánh giá đơn hàng nào.', 'jankx') . '</p>';
-            } else {
-                $output .= '<div class="jankx-review-list">';
-                foreach ($reviewedOrders as $entry) {
-                    $order = $entry['order'];
-                    $reviews = $entry['reviews'];
-                    $items = json_decode($order->items, true);
-                    $firstItem = !empty($items) ? reset($items) : null;
-                    $itemName = $firstItem['name'] ?? __('Đơn hàng', 'jankx');
+            foreach ($items as $item) {
+                $productId = (int) ($item['product_id'] ?? 0);
+                if (!$productId) {
+                    continue;
+                }
 
-                    foreach ($reviews as $pid => $comment) {
-                        $rating = (int) get_comment_meta($comment->comment_ID, RatingRepository::COMMENT_RATING_KEY, true);
-                        $postTitle = get_the_title($pid);
+                $comments = get_comments([
+                    'post_id'  => $productId,
+                    'user_id'  => $userId,
+                    'status'   => 'approve',
+                    'meta_key' => RatingRepository::COMMENT_RATING_KEY,
+                    'number'   => 1,
+                ]);
 
-                        $output .= '<div class="jankx-review-item">';
-                        $output .= '<div class="jankx-review-header">';
-                        $output .= '<div class="jankx-review-stars">';
-                        for ($i = 1; $i <= 5; $i++) {
-                            $output .= '<span class="jankx-star ' . ($i <= $rating ? 'is-active' : '') . '">★</span>';
-                        }
-                        $output .= '</div>';
-                        $output .= '<span class="jankx-review-date">' . esc_html(date('d/m/Y', strtotime($comment->comment_date))) . '</span>';
-                        $output .= '</div>';
+                if (empty($comments)) {
+                    continue;
+                }
 
-                        $output .= '<div class="jankx-review-body">';
-                        $output .= '<p class="jankx-review-content">' . esc_html($comment->comment_content) . '</p>';
-                        $output .= '<p class="jankx-review-meta">' . esc_html($postTitle) . '</p>';
-                        $output .= '</div>';
-                        $output .= '</div>';
-                    }
+                $comment = $comments[0];
+                $rating = (int) get_comment_meta($comment->comment_ID, RatingRepository::COMMENT_RATING_KEY, true);
+
+                // Get pros/cons from comment meta
+                $pros = get_comment_meta($comment->comment_ID, '_jankx_review_pros', true);
+                $cons = get_comment_meta($comment->comment_ID, '_jankx_review_cons', true);
+
+                $reviewedItems[] = [
+                    'order'      => $order,
+                    'product_id' => $productId,
+                    'name'       => $item['name'] ?? get_the_title($productId),
+                    'type'       => $item['product_type'] ?? get_post_type($productId),
+                    'comment'    => $comment,
+                    'rating'     => $rating,
+                    'pros'       => is_array($pros) ? $pros : [],
+                    'cons'       => is_array($cons) ? $cons : [],
+                ];
+            }
+        }
+
+        if (empty($reviewedItems)) {
+            $output .= '<p class="jankx-empty-state">' . esc_html__('Bạn chưa đánh giá sản phẩm nào.', 'jankx') . '</p>';
+        } else {
+            $output .= '<div class="jankx-review-items-list jankx-review-items-list--completed">';
+
+            foreach ($reviewedItems as $item) {
+                $productUrl = get_permalink($item['product_id']);
+                $productType = $this->getTypeLabel($item['type']);
+
+                $output .= '<div class="jankx-review-item-card jankx-review-item-card--reviewed">';
+
+                // Star rating
+                $output .= '<div class="jankx-review-item-rating">';
+                $output .= '<div class="jankx-review-stars">';
+                for ($i = 1; $i <= 5; $i++) {
+                    $output .= '<span class="jankx-star ' . ($i <= $item['rating'] ? 'is-active' : '') . '">★</span>';
                 }
                 $output .= '</div>';
+                $output .= '<span class="jankx-review-rating-text">' . esc_html($item['rating'] . '/5') . '</span>';
+                $output .= '</div>';
+
+                // Product info
+                $output .= '<div class="jankx-review-item-info">';
+                $output .= '<a href="' . esc_url($productUrl) . '" class="jankx-review-item-name">';
+                $output .= esc_html($item['name']);
+                $output .= '</a>';
+                $output .= '<div class="jankx-review-item-meta">';
+                if ($productType) {
+                    $output .= '<span class="jankx-review-item-type">' . esc_html($productType) . '</span>';
+                }
+                $output .= '<span class="jankx-review-item-order">' . sprintf(__('Đơn hàng #%s', 'jankx'), esc_html($item['order']->id)) . '</span>';
+                $output .= '<span class="jankx-review-item-date">' . esc_html(date('d/m/Y', strtotime($item['comment']->comment_date))) . '</span>';
+                $output .= '</div>';
+                $output .= '</div>';
+
+                // Review content
+                $output .= '<div class="jankx-review-item-content">';
+                if (!empty($item['comment']->comment_content)) {
+                    $output .= '<p class="jankx-review-text">' . esc_html($item['comment']->comment_content) . '</p>';
+                }
+                if (!empty($item['pros'])) {
+                    $output .= '<div class="jankx-review-pros">';
+                    $output .= '<span class="jankx-review-label jankx-review-label--pros">' . esc_html__('Điểm mạnh:', 'jankx') . '</span>';
+                    $output .= '<ul>';
+                    foreach ($item['pros'] as $pro) {
+                        $output .= '<li>' . esc_html($pro) . '</li>';
+                    }
+                    $output .= '</ul>';
+                    $output .= '</div>';
+                }
+                if (!empty($item['cons'])) {
+                    $output .= '<div class="jankx-review-cons">';
+                    $output .= '<span class="jankx-review-label jankx-review-label--cons">' . esc_html__('Điểm yếu:', 'jankx') . '</span>';
+                    $output .= '<ul>';
+                    foreach ($item['cons'] as $con) {
+                        $output .= '<li>' . esc_html($con) . '</li>';
+                    }
+                    $output .= '</ul>';
+                    $output .= '</div>';
+                }
+                $output .= '</div>';
+
+                $output .= '</div>';
             }
+
+            $output .= '</div>';
         }
 
         $output .= '</div>';
         return $output;
+    }
+
+    protected function getTypeLabel(string $type): string
+    {
+        $labels = [
+            'tour'       => __('Tour', 'jankx'),
+            'experience' => __('Trải nghiệm', 'jankx'),
+            'place'      => __('Địa điểm', 'jankx'),
+            'product'    => __('Sản phẩm', 'jankx'),
+            'service'    => __('Dịch vụ', 'jankx'),
+        ];
+
+        return $labels[$type] ?? ucfirst($type);
     }
 }

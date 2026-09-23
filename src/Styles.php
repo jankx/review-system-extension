@@ -253,6 +253,224 @@ class Styles
     .review-system-filter__sort {
         margin-left: 0;
     }
+    .jankx-review-item-card {
+        flex-direction: column;
+    }
+    .jankx-review-item-actions {
+        width: 100%;
+    }
+    .jankx-review-item-actions .jankx-btn {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+/* Review Items List (MyAccount) */
+.jankx-review-items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.jankx-review-item-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.jankx-review-item-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border-color: #cbd5e1;
+}
+
+.jankx-review-item-card--reviewed {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.jankx-review-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.jankx-review-item-name {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+    text-decoration: none;
+    margin-bottom: 4px;
+    line-height: 1.4;
+}
+
+.jankx-review-item-name:hover {
+    color: #007cba;
+    text-decoration: underline;
+}
+
+.jankx-review-item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.jankx-review-item-type {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    background: #f1f5f9;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #475569;
+}
+
+.jankx-review-item-price {
+    font-weight: 500;
+    color: #059669;
+}
+
+.jankx-review-item-order {
+    color: #94a3b8;
+}
+
+.jankx-review-item-date {
+    color: #94a3b8;
+}
+
+.jankx-review-item-actions {
+    flex-shrink: 0;
+}
+
+.jankx-review-item-actions .jankx-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    font-size: 14px;
+    text-decoration: none;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.jankx-review-item-actions .jankx-btn-primary {
+    background: #007cba;
+    color: #fff;
+}
+
+.jankx-review-item-actions .jankx-btn-primary:hover {
+    background: #005a87;
+}
+
+.jankx-review-item-actions .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    line-height: 16px;
+}
+
+/* Reviewed items */
+.jankx-review-item-rating {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.jankx-review-stars {
+    display: flex;
+    gap: 2px;
+}
+
+.jankx-review-stars .jankx-star {
+    color: #d1d5db;
+    font-size: 18px;
+    transition: color 0.15s;
+}
+
+.jankx-review-stars .jankx-star.is-active {
+    color: #f59e0b;
+}
+
+.jankx-review-rating-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: #475569;
+}
+
+.jankx-review-item-content {
+    padding-top: 12px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.jankx-review-text {
+    font-size: 14px;
+    color: #334155;
+    line-height: 1.6;
+    margin: 0 0 12px;
+}
+
+.jankx-review-pros,
+.jankx-review-cons {
+    margin-bottom: 8px;
+}
+
+.jankx-review-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.jankx-review-label--pros {
+    color: #16a34a;
+}
+
+.jankx-review-label--cons {
+    color: #dc2626;
+}
+
+.jankx-review-pros ul,
+.jankx-review-cons ul {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 13px;
+    color: #475569;
+}
+
+.jankx-review-pros li {
+    color: #16a34a;
+}
+
+.jankx-review-cons li {
+    color: #dc2626;
+}
+
+/* Section titles */
+.jankx-section-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.jankx-empty-state {
+    text-align: center;
+    padding: 32px 16px;
+    color: #94a3b8;
+    font-size: 14px;
 }
 CSS;
     }
