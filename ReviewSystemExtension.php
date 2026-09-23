@@ -68,7 +68,10 @@ class ReviewSystemExtension extends AbstractExtension
         }
 
         add_action('init', [$this, 'registerBlocks']);
-        add_action('init', [$this, 'registerAccountSubPage'], 110);
+
+        // Register MyAccount sub-page BEFORE syncSubPagePosts runs (priority 100).
+        // Must use this hook like other extensions, NOT 'init' priority 110.
+        add_action('jankx/my_account/register_sub_pages', [$this, 'registerAccountSubPage']);
 
         // Hook into star rating submissions to sync with review system.
         add_action('jankx/star_rating/submitted', [$this, 'on_star_rating_submitted'], 10, 4);
