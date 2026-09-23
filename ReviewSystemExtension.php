@@ -69,6 +69,37 @@ class ReviewSystemExtension extends AbstractExtension
 
         add_action('init', [$this, 'registerBlocks']);
         add_action('init', [$this, 'registerAccountSubPage'], 110);
+
+        // Hook into star rating submissions to sync with review system.
+        add_action('jankx/star_rating/submitted', [$this, 'on_star_rating_submitted'], 10, 4);
+    }
+
+    /**
+     * Handle star rating submissions.
+     *
+     * When a user submits a star rating via the RatingSubmission API,
+     * this method ensures the review-system's aggregate data stays in sync.
+     *
+     * @param int $commentId
+     * @param int $postId
+     * @param int $rating
+     * @param \WP_REST_Request $request
+     */
+    public function on_star_rating_submitted(int $commentId, int $postId, int $rating, $request): void
+    {
+        // The RatingSubmission handler already saves via RatingRepository,
+        // which updates jankx_rating_average, jankx_rating_count, and
+        // syncs legacy meta (_tour_rating, _experience_rating, _place_rating).
+        //
+        // If review-system's ReviewSummary block or shortcode is used on
+        // the page, it reads from jankx_rating_average/jankx_rating_count
+        // so no additional sync is needed here.
+        //
+        // This hook exists for extensions to add custom logic, e.g.:
+        // - Send notification emails
+        // - Update custom analytics
+        // - Trigger webhook integrations
+        do_action('jankx/review_system/rating_synced', $commentId, $postId, $rating);
     }
 
     public function registerAccountSubPage(): void
