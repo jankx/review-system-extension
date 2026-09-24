@@ -13,9 +13,16 @@ class Styles
     public static function enqueue(): void
     {
         $css = self::getCss();
-        if ($css) {
-            wp_add_inline_style('wp-blocks', $css);
+        if (!$css) {
+            return;
         }
+
+        // Register a dummy empty stylesheet so we can attach inline CSS to it.
+        // This works on both frontend and admin, unlike 'wp-blocks' which only
+        // exists inside the block editor.
+        wp_register_style('jankx-review-system', false, [], '1.1.0');
+        wp_enqueue_style('jankx-review-system');
+        wp_add_inline_style('jankx-review-system', $css);
     }
 
     public static function getCss(): string
