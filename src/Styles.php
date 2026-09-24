@@ -224,22 +224,82 @@ class Styles
     color: #dc2626;
 }
 .review-system-pros-cons {
-    margin-top: 12px;
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 .review-system-field {
-    margin-bottom: 12px;
+    padding: 18px 20px;
+    border-radius: 14px;
+    border: 1.5px solid;
+    transition: box-shadow .2s ease, border-color .2s ease;
+}
+.review-system-pros {
+    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+    border-color: #bbf7d0;
+}
+.review-system-pros:focus-within {
+    border-color: #4ade80;
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.15);
+}
+.review-system-cons {
+    background: linear-gradient(135deg, #fff1f2 0%, #fef2f2 100%);
+    border-color: #fecdd3;
+}
+.review-system-cons:focus-within {
+    border-color: #f87171;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.15);
 }
 .review-system-field label {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-weight: 600;
-    margin-bottom: 4px;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 6px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    width: fit-content;
+}
+.review-system-pros label {
+    background: #dcfce7;
+    color: #15803d;
+}
+.review-system-cons label {
+    background: #ffe4e6;
+    color: #be123c;
 }
 .review-system-field .description {
     font-size: 12px;
     color: #94a3b8;
-    margin: 0 0 4px;
+    margin: 0 0 10px;
+    line-height: 1.5;
+}
+.review-system-field textarea {
+    background: rgba(255,255,255,0.7) !important;
+    border: 1.5px solid transparent !important;
+    border-radius: 10px !important;
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    resize: vertical !important;
+    transition: border-color .2s ease, background .2s ease !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 10px 14px !important;
+    color: #1e293b !important;
+}
+.review-system-pros textarea:focus {
+    border-color: #4ade80 !important;
+    background: #fff !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+.review-system-cons textarea:focus {
+    border-color: #f87171 !important;
+    background: #fff !important;
+    outline: none !important;
+    box-shadow: none !important;
 }
 @media (max-width: 600px) {
     .review-system-summary {
