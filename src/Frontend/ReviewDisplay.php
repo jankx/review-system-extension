@@ -21,6 +21,10 @@ class ReviewDisplay
 
     public function showProsCons(string $text, $comment): void
     {
+        if (!$comment instanceof \WP_Comment) {
+            return;
+        }
+
         if (!$this->settings->isEnabled()) {
             return;
         }

@@ -45,13 +45,17 @@ class ReviewSettings
     public function getPostTypes(): array
     {
         $saved = $this->getOption(self::OPTION_POST_TYPES, null);
-        if ($saved === null) {
-            return ['tour', 'experience', 'place', 'product', 'post', 'page'];
+        if ($saved === null || (is_array($saved) && empty($saved))) {
+            $saved = ['tour', 'experience', 'place', 'product', 'service', 'post', 'page'];
         }
         if (!is_array($saved)) {
             $saved = [$saved];
         }
-        return array_values(array_filter(array_map('sanitize_text_field', $saved)));
+        $saved = array_values(array_filter(array_map('sanitize_text_field', $saved)));
+
+        // Domain extensions register their post types via the
+        // jankx/review_system/supported_post_types filter (ReviewSystemExtension::support_post_type).
+        return apply_filters('jankx/review_system/supported_post_types', $saved);
     }
 
     public function getDefaultSort(): string

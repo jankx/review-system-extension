@@ -18,6 +18,20 @@ class ReviewForm
         add_action('comment_form_logged_in_after', [$this, 'renderProsConsFields']);
         add_action('comment_form_after_fields', [$this, 'renderProsConsFields']);
         add_action('comment_post', [$this, 'saveProsCons'], 10, 3);
+        add_filter('comments_open', [$this, 'forceCommentsOpen'], 20, 2);
+    }
+
+    public function forceCommentsOpen(bool $open, int $postId): bool
+    {
+        if ($open || !$this->settings->isEnabled()) {
+            return $open;
+        }
+
+        if ($postId && $this->settings->isPostTypeSupported(get_post_type($postId))) {
+            return true;
+        }
+
+        return $open;
     }
 
     public function renderProsConsFields(): void

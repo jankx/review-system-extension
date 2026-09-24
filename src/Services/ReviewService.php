@@ -3,14 +3,156 @@
 namespace Jankx\Extensions\ReviewSystem\Services;
 
 use Jankx\Extensions\CommentRating\Rating\RatingRepository;
+use Jankx\Extensions\ReviewSystem\Contracts\ReviewRepositoryInterface;
+use Jankx\Extensions\ReviewSystem\Models\Review;
+use Jankx\Extensions\ReviewSystem\Repositories\DatabaseReviewRepository;
 
+/**
+ * Review use-case facade. Extensions call this service (or the REST API it
+ * backs) to read, submit and moderate reviews for their post types.
+ *
+ * A review is persisted twice in parallel:
+ *  - a WordPress comment (moderation surface, comment-rating aggregates)
+ *  - a row in the jankx_reviews table (linked to the post and the comment)
+ *
+ * @package Jankx\Extensions\ReviewSystem\Services
+ */
 class ReviewService
 {
     protected $settings;
 
-    public function __construct(ReviewSettings $settings)
+    protected $repository;
+
+    public function __construct(ReviewSettings $settings, ?ReviewRepositoryInterface $repository = null)
     {
         $this->settings = $settings;
+        $this->repository = $repository ?: new DatabaseReviewRepository();
+    }
+
+    public function getRepository(): ReviewRepositoryInterface
+    {
+        return $this->repository;
+    }
+
+    // ------------------------------------------------------------------
+    // Write path (comment + table kept in sync)
+    // ------------------------------------------------------------------
+
+    /**
+     * Submit a brand new review. Creates the WP comment, stores rating and
+     * pros/cons metadata, then mirrors the row into jankx_reviews.
+     *
+     * @param array $data post_id, rating, content, pros, cons, author_name,
+     *                    author_email, user_id
+     */
+    public function submit(array $data): Review
+    {
+        $postId = (int) ($data['post_id'] ?? 0);
+        $rating = max(1, min($this->getMaxRating(), (int) ($data['rating'] ?? 0)));
+        $userId = (int) ($data['user_id'] ?? get_current_user_id());
+
+        $content = sanitize_textarea_field((string) ($data['content'] ?? ''));
+        if ($content === '') {
+            $content = $content ?: sprintf(__('Đánh giá %d/%d', 'jankx'), $rating, $this->getMaxRating());
+        }
+        $content = wp_kses_post($content);
+
+        $pros = $this->normalizeLines($data['pros'] ?? []);
+        $cons = $this->normalizeLines($data['cons'] ?? []);
+
+        $authorEmail = sanitize_email((string) ($data['author_email'] ?? ''));
+        $authorName = trim($data['author_name'] ?? '');
+        if ($authorName === '') {
+            $authorName = $userId ? wp_get_current_user()->display_name : __('Khách', 'jankx');
+        }
+
+        $commentId = wp_insert_comment([
+            'comment_post_ID'      => $postId,
+            'comment_content'      => $content,
+            'comment_type'         => 'review',
+            'comment_approved'     => '1',
+            'user_id'              => $userId,
+            'comment_author'       => sanitize_text_field($authorName),
+            'comment_author_email' => $authorEmail,
+            'comment_author_IP'    => sanitize_text_field((string) ($data['author_ip'] ?? '')),
+        ]);
+
+        if (!$commentId || is_wp_error($commentId)) {
+            return new Review();
+        }
+
+        $repository = new RatingRepository();
+        $repository->save($commentId, $postId, $rating);
+
+        if ($pros) {
+            $this->savePros($commentId, $pros);
+        }
+        if ($cons) {
+            $this->saveCons($commentId, $cons);
+        }
+
+        $review = $this->repository->upsertFromComment($commentId);
+
+        do_action('jankx/star_rating/submitted', $commentId, $postId, $rating, null);
+        do_action('jankx/review_system/review_submitted', $review, $postId, $rating, $data);
+
+        return $review ?: new Review();
+    }
+
+    /**
+     * Mirror an existing review comment into the table (comment form path).
+     */
+    public function syncFromComment(int $commentId): ?Review
+    {
+        $review = $this->repository->upsertFromComment($commentId);
+        if ($review) {
+            do_action('jankx/review_system/review_synced', $review, $commentId);
+        }
+        return $review;
+    }
+
+    /**
+     * Reflect a comment status change onto its review row.
+     */
+    public function syncCommentStatus(int $commentId, string $newStatus): void
+    {
+        $this->repository->upsertFromComment($commentId);
+        $this->recomputeAggregateFromComment($commentId);
+    }
+
+    /**
+     * Remove the review row when its comment is deleted.
+     */
+    public function removeByComment(int $commentId): void
+    {
+        $postId = (int) get_comment_meta($commentId, RatingRepository::COMMENT_POST_KEY, true);
+        if (!$postId) {
+            $comment = get_comment($commentId);
+            $postId = $comment ? (int) $comment->comment_post_ID : 0;
+        }
+
+        $this->repository->deleteByComment($commentId);
+
+        if ($postId) {
+            $this->recomputeAggregate($postId);
+        }
+    }
+
+    public function recomputeAggregate(int $postId): void
+    {
+        (new RatingRepository())->recomputeAggregate($postId);
+    }
+
+    protected function recomputeAggregateFromComment(int $commentId): void
+    {
+        $postId = (int) get_comment_meta($commentId, RatingRepository::COMMENT_POST_KEY, true);
+        if (!$postId) {
+            $comment = get_comment($commentId);
+            $postId = $comment ? (int) $comment->comment_post_ID : 0;
+        }
+        if ($postId) {
+            $this->recomputeAggregate($postId);
+        }
     }
 
     public function savePros(int $commentId, array $pros): void
@@ -37,37 +179,53 @@ class ReviewService
         return is_array($cons) ? $cons : [];
     }
 
-    public function getRatingDistribution(int $postId): array
+    // ------------------------------------------------------------------
+    // Read path (table backed, falls back to legacy comment aggregates)
+    // ------------------------------------------------------------------
+
+    public function getSummary(int $postId): array
     {
-        $repository = new RatingRepository();
-        $values = $repository->getValues($postId);
-        $max = $this->getMaxRating();
-
-        $dist = [];
-        for ($i = 1; $i <= $max; $i++) {
-            $dist[$i] = 0;
-        }
-
-        foreach ($values as $rating) {
-            $r = (int) $rating;
-            if ($r >= 1 && $r <= $max) {
-                $dist[$r]++;
-            }
-        }
-
-        return $dist;
+        return [
+            'average'      => $this->getAverage($postId),
+            'count'        => $this->getCount($postId),
+            'distribution' => $this->getRatingDistribution($postId),
+            'max_rating'   => $this->getMaxRating(),
+        ];
     }
 
     public function getAverage(int $postId): float
     {
-        $repository = new RatingRepository();
-        return (float) $repository->getAverage($postId);
+        if ($this->repository->countForPost($postId, Review::STATUS_APPROVED) === 0) {
+            $legacy = new RatingRepository();
+            if ($legacy->getCount($postId) > 0) {
+                return (float) $legacy->getAverage($postId);
+            }
+        }
+
+        return $this->repository->averageForPost($postId, Review::STATUS_APPROVED);
     }
 
     public function getCount(int $postId): int
     {
-        $repository = new RatingRepository();
-        return (int) $repository->getCount($postId);
+        $count = $this->repository->countForPost($postId, Review::STATUS_APPROVED);
+        if ($count > 0) {
+            return $count;
+        }
+
+        $legacy = new RatingRepository();
+        return $legacy->getCount($postId);
+    }
+
+    public function getRatingDistribution(int $postId): array
+    {
+        if ($this->repository->countForPost($postId, Review::STATUS_APPROVED) === 0) {
+            $legacy = new RatingRepository();
+            if ($legacy->getCount($postId) > 0) {
+                return $this->distributionFromValues($legacy->getValues($postId));
+            }
+        }
+
+        return $this->repository->ratingDistribution($postId, Review::STATUS_APPROVED, $this->getMaxRating());
     }
 
     public function getMaxRating(): int
@@ -78,168 +236,95 @@ class ReviewService
         return 5;
     }
 
+    /**
+     * @return array[] Array of review data arrays.
+     */
     public function getReviews(int $postId, array $args = []): array
     {
         $defaults = [
-            'status' => 'approve',
-            'post_id' => $postId,
-            'orderby' => 'comment_date_gmt',
-            'order' => 'DESC',
-            'number' => 20,
-            'offset' => 0,
+            'status'   => Review::STATUS_APPROVED,
+            'order_by' => 'created_at',
+            'order'    => 'DESC',
+            'number'   => 20,
+            'offset'   => 0,
         ];
         $args = wp_parse_args($args, $defaults);
 
-        $comments = get_comments($args);
+        $reviews = $this->repository->findForPost($postId, [
+            'status'   => $args['status'],
+            'rating'   => (int) ($args['rating'] ?? 0),
+            'order_by' => $args['order_by'],
+            'order'    => $args['order'],
+            'limit'    => (int) $args['number'],
+            'offset'   => (int) $args['offset'],
+        ]);
 
-        $reviews = [];
-        foreach ($comments as $comment) {
-            $rating = (int) get_comment_meta($comment->comment_ID, 'jankx_comment_rating', true);
-            if ($rating < 1) {
-                continue;
-            }
-
-            $review = [
-                'id' => $comment->comment_ID,
-                'rating' => $rating,
-                'pros' => $this->getPros($comment->comment_ID),
-                'cons' => $this->getCons($comment->comment_ID),
-                'author' => $comment->comment_author,
-                'content' => $comment->comment_content,
-                'date' => $comment->comment_date,
-                'avatar' => get_avatar_url($comment->comment_author_email, ['size' => 48]),
-            ];
-            $reviews[] = $review;
-        }
-
-        return $reviews;
+        return array_map(function (Review $review) {
+            return $review->toDataArray();
+        }, $reviews);
     }
 
     public function getSortedReviews(int $postId, string $sortBy = 'newest'): array
     {
-        switch ($sortBy) {
-            case 'highest':
-                $comments = get_comments([
-                    'post_id' => $postId,
-                    'status' => 'approve',
-                    'meta_key' => 'jankx_comment_rating',
-                    'orderby' => 'meta_value_num',
-                    'order' => 'DESC',
-                    'number' => 100,
-                ]);
-                break;
-            case 'lowest':
-                $comments = get_comments([
-                    'post_id' => $postId,
-                    'status' => 'approve',
-                    'meta_key' => 'jankx_comment_rating',
-                    'orderby' => 'meta_value_num',
-                    'order' => 'ASC',
-                    'number' => 100,
-                ]);
-                break;
-            case 'oldest':
-                $comments = get_comments([
-                    'post_id' => $postId,
-                    'status' => 'approve',
-                    'orderby' => 'comment_date_gmt',
-                    'order' => 'ASC',
-                    'number' => 100,
-                ]);
-                break;
-            case 'newest':
-            default:
-                $comments = get_comments([
-                    'post_id' => $postId,
-                    'status' => 'approve',
-                    'orderby' => 'comment_date_gmt',
-                    'order' => 'DESC',
-                    'number' => 100,
-                ]);
-                break;
-        }
-
-        $reviews = [];
-        foreach ($comments as $comment) {
-            $rating = (int) get_comment_meta($comment->comment_ID, 'jankx_comment_rating', true);
-            if ($rating < 1) {
-                continue;
-            }
-            $reviews[] = [
-                'id' => $comment->comment_ID,
-                'rating' => $rating,
-                'pros' => $this->getPros($comment->comment_ID),
-                'cons' => $this->getCons($comment->comment_ID),
-                'author' => $comment->comment_author,
-                'content' => $comment->comment_content,
-                'date' => $comment->comment_date,
-                'avatar' => get_avatar_url($comment->comment_author_email, ['size' => 48]),
-            ];
-        }
-
-        return $reviews;
+        return $this->getReviews($postId, $this->sortCriteria($sortBy));
     }
 
     public function getFilteredReviews(int $postId, array $filters = [], string $sortBy = 'newest'): array
     {
-        $args = [
-            'post_id' => $postId,
-            'status' => 'approve',
-            'number' => 100,
-        ];
-
+        $criteria = $this->sortCriteria($sortBy);
         if (!empty($filters['rating'])) {
-            $rating = (int) $filters['rating'];
-            $args['meta_key'] = 'jankx_comment_rating';
-            $args['meta_value'] = $rating;
+            $criteria['rating'] = (int) $filters['rating'];
         }
 
+        return $this->getReviews($postId, $criteria);
+    }
+
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+
+    protected function sortCriteria(string $sortBy): array
+    {
         switch ($sortBy) {
             case 'highest':
-                $args['orderby'] = 'meta_value_num';
-                $args['order'] = 'DESC';
-                if (empty($args['meta_key'])) {
-                    $args['meta_key'] = 'jankx_comment_rating';
-                }
-                break;
+                return ['order_by' => 'rating', 'order' => 'DESC'];
             case 'lowest':
-                $args['orderby'] = 'meta_value_num';
-                $args['order'] = 'ASC';
-                if (empty($args['meta_key'])) {
-                    $args['meta_key'] = 'jankx_comment_rating';
-                }
-                break;
+                return ['order_by' => 'rating', 'order' => 'ASC'];
             case 'oldest':
-                $args['orderby'] = 'comment_date_gmt';
-                $args['order'] = 'ASC';
-                break;
+                return ['order_by' => 'created_at', 'order' => 'ASC'];
             case 'newest':
             default:
-                $args['orderby'] = 'comment_date_gmt';
-                $args['order'] = 'DESC';
-                break;
+                return ['order_by' => 'created_at', 'order' => 'DESC'];
+        }
+    }
+
+    protected function normalizeLines($input): array
+    {
+        if (is_string($input)) {
+            $input = explode("\n", $input);
+        }
+        if (!is_array($input)) {
+            return [];
         }
 
-        $comments = get_comments($args);
+        return array_values(array_filter(array_map(function ($line) {
+            return sanitize_text_field(trim((string) $line));
+        }, $input)));
+    }
 
-        $reviews = [];
-        foreach ($comments as $comment) {
-            $rating = (int) get_comment_meta($comment->comment_ID, 'jankx_comment_rating', true);
-            if ($rating < 1) {
-                continue;
+    protected function distributionFromValues(array $values): array
+    {
+        $dist = [];
+        $max = $this->getMaxRating();
+        for ($i = 1; $i <= $max; $i++) {
+            $dist[$i] = 0;
+        }
+        foreach ($values as $rating) {
+            $r = (int) $rating;
+            if (isset($dist[$r])) {
+                $dist[$r]++;
             }
-            $reviews[] = [
-                'id' => $comment->comment_ID,
-                'rating' => $rating,
-                'pros' => $this->getPros($comment->comment_ID),
-                'cons' => $this->getCons($comment->comment_ID),
-                'author' => $comment->comment_author,
-                'content' => $comment->comment_content,
-                'date' => $comment->comment_date,
-                'avatar' => get_avatar_url($comment->comment_author_email, ['size' => 48]),
-            ];
         }
-
-        return $reviews;
+        return $dist;
     }
 }
