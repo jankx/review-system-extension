@@ -34,12 +34,12 @@ class ReviewSettings
 
     public function showPros(): bool
     {
-        return (bool) $this->getOption(self::OPTION_SHOW_PROS, 1);
+        return false;
     }
 
     public function showCons(): bool
     {
-        return (bool) $this->getOption(self::OPTION_SHOW_CONS, 1);
+        return false;
     }
 
     public function getPostTypes(): array
