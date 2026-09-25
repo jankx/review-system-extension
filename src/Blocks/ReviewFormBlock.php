@@ -56,14 +56,16 @@ class ReviewFormBlock extends Block
         $reviewInfo = [];
 
         if ($requirePurchase) {
+            // Chưa đăng nhập → ẩn hoàn toàn (không hiển thị gì).
             if (!$userId) {
-                return $this->renderLoginPrompt($postId);
+                return '';
             }
 
             $purchaseService = new PurchaseService();
             $orderIds = $purchaseService->getCompletedOrderIds($userId, $postId);
+            // Chưa có đơn hàng completed → ẩn hoàn toàn.
             if (empty($orderIds)) {
-                return $this->renderPurchaseRequired($postId);
+                return '';
             }
 
             // Mỗi đơn hàng được phép đánh giá đúng một lần cho sản phẩm này.
@@ -92,8 +94,9 @@ class ReviewFormBlock extends Block
                 ];
             }
 
+            // Không tìm được order object hợp lệ → ẩn hoàn toàn.
             if (empty($orders)) {
-                return $this->renderPurchaseRequired($postId);
+                return '';
             }
 
             $reviewInfo = [
