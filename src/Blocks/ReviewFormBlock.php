@@ -239,6 +239,8 @@ class ReviewFormBlock extends Block
                     </div>
                 <?php endif; ?>
 
+                <?php echo $this->renderMediaUploadZone($postId); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+
                 <div class="jankx-review-form__submit">
                     <button class="jankx-review-form__button" type="button"><?php echo esc_html($submitText); ?></button>
                     <span class="jankx-review-form__spinner" style="display:none;">
@@ -251,6 +253,29 @@ class ReviewFormBlock extends Block
         </div>
         <?php
         return (string) ob_get_clean();
+    }
+
+    protected function renderMediaUploadZone(int $postId): string
+    {
+        if (!is_user_logged_in()) {
+            return '';
+        }
+
+        if (!class_exists('\Jankx\Extensions\CommentMedia\CommentMediaExtension')) {
+            return '';
+        }
+
+        $extension = \Jankx\Extensions\CommentMedia\CommentMediaExtension::get_instance();
+        if (!$extension || !$extension->isEnabled()) {
+            return '';
+        }
+
+        $zone = $extension->renderUploadZone('review-', $postId);
+        if ($zone === '') {
+            return '';
+        }
+
+        return '<div class="jankx-review-form__media">' . $zone . '</div>';
     }
 
     protected function renderLoginPrompt(int $postId): string
@@ -333,10 +358,20 @@ class ReviewFormBlock extends Block
         $scriptUrl = $extension->get_extension_url() . '/blocks/review-form/frontend.js';
         $scriptPath = $extension->get_extension_path() . '/blocks/review-form/frontend.js';
 
+        $dependencies = [];
+
+        if (class_exists('\Jankx\Extensions\CommentMedia\CommentMediaExtension')) {
+            $commentMedia = \Jankx\Extensions\CommentMedia\CommentMediaExtension::get_instance();
+            if ($commentMedia && $commentMedia->isEnabled()) {
+                $commentMedia->enqueueAssets();
+                $dependencies[] = 'comment-media';
+            }
+        }
+
         wp_enqueue_script(
             'jankx-review-form-frontend',
             $scriptUrl,
-            [],
+            $dependencies,
             file_exists($scriptPath) ? filemtime($scriptPath) : '1.0.0',
             true
         );
@@ -364,6 +399,7 @@ class ReviewFormBlock extends Block
                 'purchaseRequired'=> __('Bạn cần mua sản phẩm thành công để đánh giá.', 'jankx'),
                 'alreadyRated'    => __('Bạn đã đánh giá sản phẩm này rồi.', 'jankx'),
                 'nextOrder'       => __('Cảm ơn bạn! Sẵn sàng đánh giá cho đơn hàng tiếp theo.', 'jankx'),
+                'uploadingMedia'  => __('Đang tải ảnh lên, vui lòng chờ...', 'jankx'),
             ],
         ]);
     }

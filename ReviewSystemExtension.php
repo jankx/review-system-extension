@@ -61,6 +61,8 @@ class ReviewSystemExtension extends AbstractExtension
         // Extensions declare review support through this channel.
         add_filter('jankx/review_system/supported_post_types', [$this, 'mergeSupportedPostTypes']);
 
+        add_filter('get_avatar_comment_types', [$this, 'allowReviewAvatar']);
+
         // Keep the jankx_reviews table in sync with WP comments.
         add_action('comment_post', [$this, 'syncReviewFromComment'], 20, 3);
         add_action('wp_set_comment_status', [$this, 'syncReviewCommentStatus'], 20, 2);
@@ -123,7 +125,14 @@ class ReviewSystemExtension extends AbstractExtension
 
     public function mergeSupportedPostTypes(array $postTypes): array
     {
-        return array_values(array_unique(array_merge($postTypes, self::$supportedPostTypes)));
+        return array_values(array_unique(array_merge($postTypes, self::get_supported_post_types())));
+    }
+
+    public function allowReviewAvatar(array $commentTypes): array
+    {
+        $commentTypes[] = 'review';
+
+        return array_values(array_unique($commentTypes));
     }
 
     public function syncReviewFromComment(int $commentId, int $approved, array $commentData): void

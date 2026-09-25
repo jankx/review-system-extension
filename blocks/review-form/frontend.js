@@ -20,6 +20,7 @@
         var message = form.querySelector('.jankx-review-form__message');
         var orderInput = form.querySelector('.jankx-review-form__order-input');
         var orderLabel = form.querySelector('.jankx-review-form__order-label');
+        var mediaZone = form.querySelector('.comment-media-upload-zone');
         var selected = 0;
 
         var orders = (jankxReviewForm && Array.isArray(jankxReviewForm.orders)) ? jankxReviewForm.orders : [];
@@ -49,8 +50,37 @@
             orderLabel.textContent = orders[index].label;
         }
 
+        function collectMediaIds() {
+            var ids = [];
+            var inputs = form.querySelectorAll('input[name="comment_media_ids[]"]');
+            Array.prototype.forEach.call(inputs, function (input) {
+                var value = parseInt(input.value, 10);
+                if (value > 0) {
+                    ids.push(value);
+                }
+            });
+            return ids;
+        }
+
+        function isMediaUploading() {
+            return form.querySelectorAll('.comment-media-preview-item--uploading').length > 0;
+        }
+
+        function resetMedia() {
+            Array.prototype.forEach.call(form.querySelectorAll('.comment-media-preview-item'), function (node) {
+                node.parentNode.removeChild(node);
+            });
+            Array.prototype.forEach.call(form.querySelectorAll('input.comment-media-hidden-input'), function (node) {
+                node.parentNode.removeChild(node);
+            });
+            if (mediaZone && typeof CustomEvent === 'function') {
+                mediaZone.dispatchEvent(new CustomEvent('comment-media:reset'));
+            }
+        }
+
         function resetForm() {
             selected = 0;
+            resetMedia();
             if (stars) {
                 stars.forEach(function (star) {
                     star.classList.remove('is-active', 'is-hover');
@@ -166,6 +196,11 @@
                 return;
             }
 
+            if (isMediaUploading()) {
+                showMessage(i18n('uploadingMedia') || 'Đang tải ảnh lên, vui lòng chờ...');
+                return;
+            }
+
             if (!jankxReviewForm || !jankxReviewForm.restUrl) {
                 showMessage(i18n('error'));
                 return;
@@ -190,6 +225,11 @@
             }
             if (emailInput) {
                 payload.author_email = emailInput.value;
+            }
+
+            var mediaIds = collectMediaIds();
+            if (mediaIds.length) {
+                payload.media_ids = mediaIds;
             }
 
             fetch(jankxReviewForm.restUrl, {

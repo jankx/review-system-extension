@@ -9,6 +9,8 @@ use Jankx\Extensions\ReviewSystem\Services\ReviewSettings;
 
 class ReviewsCompletedBlock extends Block
 {
+    use RendersCommentMediaTrait;
+
     protected $blockId = 'jankx/reviews-completed';
 
     public function render($attributes, $content = '', $block = null)
@@ -139,6 +141,7 @@ class ReviewsCompletedBlock extends Block
                     $output .= '</ul>';
                     $output .= '</div>';
                 }
+                $output .= $this->renderCommentMedia($item['comment']);
                 $output .= '</div>';
 
                 $output .= '</div>';

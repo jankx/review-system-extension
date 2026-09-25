@@ -9,6 +9,8 @@ use Jankx\Extensions\CommentRating\Rating\RatingRepository;
 
 class ReviewsMyReviewsBlock extends Block
 {
+    use RendersCommentMediaTrait;
+
     protected $blockId = 'jankx/reviews-my-reviews';
 
     public function render($attributes, $content = '', $block = null)
@@ -60,6 +62,7 @@ class ReviewsMyReviewsBlock extends Block
 
                 $output .= '<div class="jankx-review-body">';
                 $output .= '<p class="jankx-review-content">' . esc_html($comment->comment_content) . '</p>';
+                $output .= $this->renderCommentMedia($comment);
                 if (!empty($postTitle)) {
                     $output .= '<p class="jankx-review-meta">' . esc_html(__('Đánh giá cho:', 'jankx')) . ' <a href="' . esc_url($postUrl) . '">' . esc_html($postTitle) . '</a></p>';
                 }

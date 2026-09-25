@@ -62,6 +62,12 @@ class ReviewService
         $cons = $this->normalizeLines($data['cons'] ?? []);
 
         $authorEmail = sanitize_email((string) ($data['author_email'] ?? ''));
+        if ($authorEmail === '' && $userId) {
+            $userData = get_userdata($userId);
+            if ($userData) {
+                $authorEmail = sanitize_email($userData->user_email);
+            }
+        }
         $authorName = trim($data['author_name'] ?? '');
         if ($authorName === '') {
             $authorName = $userId ? wp_get_current_user()->display_name : __('Khách', 'jankx');
@@ -86,6 +92,8 @@ class ReviewService
             update_comment_meta($commentId, ReviewSettings::META_ORDER, $orderId);
         }
 
+        $this->attachMedia($commentId, $postId, $data['media_ids'] ?? []);
+
         $repository = new RatingRepository();
         $repository->save($commentId, $postId, $rating);
 
@@ -106,6 +114,52 @@ class ReviewService
         do_action('jankx/review_system/review_submitted', $review, $postId, $rating, $data);
 
         return $review ?: new Review();
+    }
+
+    protected function attachMedia(int $commentId, int $postId, $mediaIds): void
+    {
+        $mediaIds = array_values(array_filter(array_map('absint', (array) $mediaIds)));
+        if (!$mediaIds) {
+            return;
+        }
+
+        $metaKey = 'jankx_media_attachment_ids';
+        $maxFiles = 0;
+
+        if (class_exists('\Jankx\Extensions\CommentMedia\CommentMediaExtension')) {
+            $extension = \Jankx\Extensions\CommentMedia\CommentMediaExtension::get_instance();
+            if ($extension) {
+                $metaKey = $extension::COMMENT_META_KEY;
+                $maxFiles = $extension->getMaxFiles();
+            }
+        }
+
+        if ($maxFiles > 0) {
+            $mediaIds = array_slice($mediaIds, 0, $maxFiles);
+        }
+
+        $attachmentIds = [];
+        foreach ($mediaIds as $attachmentId) {
+            if (get_post_type($attachmentId) !== 'attachment') {
+                continue;
+            }
+            if ((string) get_post_meta($attachmentId, '_is_comment_media', true) !== '1') {
+                continue;
+            }
+            $attachmentIds[] = $attachmentId;
+        }
+
+        if (!$attachmentIds) {
+            return;
+        }
+
+        update_comment_meta($commentId, $metaKey, $attachmentIds);
+
+        foreach ($attachmentIds as $attachmentId) {
+            update_post_meta($attachmentId, '_comment_media_orphan', '0');
+            update_post_meta($attachmentId, '_comment_media_comment_id', $commentId);
+            update_post_meta($attachmentId, '_comment_media_post_id', $postId);
+        }
     }
 
     /**

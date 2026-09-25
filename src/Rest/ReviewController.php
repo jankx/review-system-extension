@@ -252,6 +252,7 @@ class ReviewController
             'author_email' => $authorEmail,
             'author_ip'    => $authorIp,
             'user_id'      => $userId,
+            'media_ids'    => (array) $request->get_param('media_ids'),
         ]);
 
         if ($review->getId() < 1) {
@@ -536,6 +537,29 @@ class ReviewController
                 'type'              => 'string',
                 'sanitize_callback' => 'sanitize_email',
             ],
+            'media_ids'     => [
+                'required'          => false,
+                'type'              => 'array',
+                'items'             => [
+                    'type' => 'integer',
+                ],
+                'sanitize_callback' => [$this, 'sanitizeMediaIds'],
+            ],
         ];
+    }
+
+    public function sanitizeMediaIds($value): array
+    {
+        $ids = array_values(array_filter(array_map('absint', (array) $value)));
+
+        $max = 0;
+        if (class_exists('\Jankx\Extensions\CommentMedia\CommentMediaExtension')) {
+            $extension = \Jankx\Extensions\CommentMedia\CommentMediaExtension::get_instance();
+            if ($extension) {
+                $max = $extension->getMaxFiles();
+            }
+        }
+
+        return array_slice($ids, 0, $max > 0 ? $max : 10);
     }
 }
