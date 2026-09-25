@@ -16,27 +16,27 @@ class ReviewDisplay
 
     public function register(): void
     {
-        add_action('comment_text', [$this, 'showProsCons'], 15, 2);
+        add_filter('comment_text', [$this, 'showProsCons'], 15, 2);
     }
 
-    public function showProsCons(string $text, $comment): void
+    public function showProsCons(string $text, $comment): string
     {
         if (!$comment instanceof \WP_Comment) {
-            return;
+            return $text;
         }
 
         if (!$this->settings->isEnabled()) {
-            return;
+            return $text;
         }
 
         $postId = $comment->comment_post_ID;
         if (!$postId || !$this->settings->isPostTypeSupported(get_post_type($postId))) {
-            return;
+            return $text;
         }
 
         $rating = (int) get_comment_meta($comment->comment_ID, 'jankx_comment_rating', true);
         if ($rating < 1) {
-            return;
+            return $text;
         }
 
         $service = new ReviewService($this->settings);
@@ -44,21 +44,27 @@ class ReviewDisplay
         $cons = $service->getCons($comment->comment_ID);
 
         if (empty($pros) && empty($cons)) {
-            return;
+            return $text;
         }
 
         $max = $this->settings->isEnabled() && class_exists('\Jankx\Extensions\CommentRating\Admin\Settings')
             ? \Jankx\Extensions\CommentRating\Admin\Settings::getMaxRating()
             : 5;
 
+        $commentRatingHandled = class_exists('\Jankx\Extensions\CommentRating\Admin\Settings')
+            && \Jankx\Extensions\CommentRating\Admin\Settings::isEnabled();
+
+        ob_start();
         ?>
         <div class="review-system-comment-extras">
+            <?php if (!$commentRatingHandled) : ?>
             <div class="review-system-stars" aria-label="<?php printf(esc_attr__('%d/%d sao', 'jankx'), $rating, $max); ?>">
                 <?php for ($i = 1; $i <= $max; $i++) : ?>
                     <span class="review-system-star <?php echo $i <= $rating ? 'is-active' : ''; ?>">★</span>
                 <?php endfor; ?>
                 <span class="review-system-rating-text"><?php printf(esc_html('%d/%d', 'jankx'), $rating, $max); ?></span>
             </div>
+            <?php endif; ?>
 
             <?php if (!empty($pros)) : ?>
             <div class="review-system-pros-list">
@@ -89,5 +95,7 @@ class ReviewDisplay
             <?php endif; ?>
         </div>
         <?php
+
+        return $text . ob_get_clean();
     }
 }
