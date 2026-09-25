@@ -53,29 +53,63 @@ class ReviewFormBlock extends Block
         $requirePurchase = $this->resolvePurchaseRequirement($attributes);
         $userId = get_current_user_id();
 
-        // Người dùng đã đánh giá bài viết này.
-        if ($this->currentUserReviewed($postId)) {
-            return $this->renderAlreadyReviewed($postId, $requirePurchase);
-        }
+        $reviewInfo = [];
 
-        // Yêu cầu mua hàng: chỉ hiển thị form khi đã mua thành công.
         if ($requirePurchase) {
             if (!$userId) {
                 return $this->renderLoginPrompt($postId);
             }
 
             $purchaseService = new PurchaseService();
-            if (!$purchaseService->canReview($userId, $postId, true)) {
+            $orderIds = $purchaseService->getCompletedOrderIds($userId, $postId);
+            if (empty($orderIds)) {
                 return $this->renderPurchaseRequired($postId);
             }
+
+            // Mỗi đơn hàng được phép đánh giá đúng một lần cho sản phẩm này.
+            $reviewedOrderIds = $this->service->getRepository()->findReviewedOrderIdsForPost($orderIds, $postId);
+            $eligibleOrderIds = array_values(array_diff($orderIds, $reviewedOrderIds));
+            if (empty($eligibleOrderIds)) {
+                return $this->renderAlreadyReviewed($postId, $requirePurchase);
+            }
+
+            // Ưu tiên đơn được chỉ định từ My Account (?order_id=), mặc định là
+            // đơn completed mới nhất chưa đánh giá.
+            $requestedOrderId = (int) ($_GET['order_id'] ?? 0);
+            $defaultOrderId = in_array($requestedOrderId, $eligibleOrderIds, true)
+                ? $requestedOrderId
+                : (int) $eligibleOrderIds[0];
+
+            $orders = [];
+            foreach ($eligibleOrderIds as $orderId) {
+                $order = $purchaseService->getOrderForUser($userId, $orderId);
+                if (!$order) {
+                    continue;
+                }
+                $orders[] = [
+                    'id'    => (int) $order->id,
+                    'label' => $this->formatOrderLabel($order),
+                ];
+            }
+
+            if (empty($orders)) {
+                return $this->renderPurchaseRequired($postId);
+            }
+
+            $reviewInfo = [
+                'orders'         => $orders,
+                'defaultOrderId' => $defaultOrderId,
+            ];
+        } elseif ($this->currentUserReviewed($postId)) {
+            return $this->renderAlreadyReviewed($postId, $requirePurchase);
         }
 
-        return $this->renderForm($postId, $maxRating, $requirePurchase, $attributes);
+        return $this->renderForm($postId, $maxRating, $requirePurchase, $attributes, $reviewInfo);
     }
 
-    protected function renderForm(int $postId, int $maxRating, bool $requirePurchase, array $attributes): string
+    protected function renderForm(int $postId, int $maxRating, bool $requirePurchase, array $attributes, array $reviewInfo = []): string
     {
-        $this->enqueueAssets($postId, $maxRating, $requirePurchase);
+        $this->enqueueAssets($postId, $maxRating, $requirePurchase, $reviewInfo);
 
         $title = (string) ($attributes['title'] ?? '');
         if ($title === '') {
@@ -123,6 +157,23 @@ class ReviewFormBlock extends Block
                     <div class="jankx-review-form__user-info">
                         <span class="jankx-review-form__avatar"><?php echo get_avatar($currentUser->ID, 32); ?></span>
                         <span class="jankx-review-form__username"><?php echo esc_html($currentUser->display_name); ?></span>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($requirePurchase && !empty($reviewInfo['orders'])) : ?>
+                    <?php
+                    $defaultLabel = '';
+                    foreach ($reviewInfo['orders'] as $orderInfo) {
+                        if ((int) $orderInfo['id'] === (int) $reviewInfo['defaultOrderId']) {
+                            $defaultLabel = $orderInfo['label'];
+                            break;
+                        }
+                    }
+                    $defaultLabel = $defaultLabel !== '' ? $defaultLabel : $reviewInfo['orders'][0]['label'];
+                    ?>
+                    <div class="jankx-review-form__order">
+                        <span class="jankx-review-form__order-label" data-order-label><?php echo esc_html($defaultLabel); ?></span>
+                        <input type="hidden" class="jankx-review-form__order-input" name="order_id" value="<?php echo esc_attr($reviewInfo['defaultOrderId']); ?>" />
                     </div>
                 <?php endif; ?>
 
@@ -272,7 +323,7 @@ class ReviewFormBlock extends Block
         return $this->service->getRepository()->findExisting($postId, $userId) !== null;
     }
 
-    protected function enqueueAssets(int $postId, int $maxRating, bool $requirePurchase): void
+    protected function enqueueAssets(int $postId, int $maxRating, bool $requirePurchase, array $reviewInfo = []): void
     {
         $extension = ReviewSystemExtension::get_instance();
         if (!$extension) {
@@ -302,6 +353,8 @@ class ReviewFormBlock extends Block
             'nonce'           => wp_create_nonce('wp_rest'),
             'userName'        => $isLoggedIn ? $currentUser->display_name : '',
             'userEmail'       => $isLoggedIn ? $currentUser->user_email : '',
+            'orders'          => $requirePurchase ? ($reviewInfo['orders'] ?? []) : [],
+            'defaultOrderId'  => $requirePurchase ? (int) ($reviewInfo['defaultOrderId'] ?? 0) : 0,
             'i18n'            => [
                 'selectRating'    => __('Vui lòng chọn số sao.', 'jankx'),
                 'submitting'      => __('Đang gửi...', 'jankx'),
@@ -310,6 +363,7 @@ class ReviewFormBlock extends Block
                 'loginRequired'   => __('Vui lòng đăng nhập để đánh giá.', 'jankx'),
                 'purchaseRequired'=> __('Bạn cần mua sản phẩm thành công để đánh giá.', 'jankx'),
                 'alreadyRated'    => __('Bạn đã đánh giá sản phẩm này rồi.', 'jankx'),
+                'nextOrder'       => __('Cảm ơn bạn! Sẵn sàng đánh giá cho đơn hàng tiếp theo.', 'jankx'),
             ],
         ]);
     }
@@ -351,5 +405,16 @@ class ReviewFormBlock extends Block
         }
 
         return $this->settings->requirePurchase();
+    }
+
+    protected function formatOrderLabel(\stdClass $order): string
+    {
+        $number = !empty($order->order_number) ? (string) $order->order_number : (string) $order->id;
+        $date = !empty($order->created_at) ? date('d/m/Y', strtotime($order->created_at)) : '';
+        $total = isset($order->total) ? number_format((float) $order->total, 0, ',', '.') . 'đ' : '';
+
+        $parts = array_values(array_filter(['#' . $number, $date, $total]));
+
+        return trim(sprintf(__('Đơn hàng %s', 'jankx'), implode(' · ', $parts)));
     }
 }

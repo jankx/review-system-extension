@@ -78,6 +78,23 @@
     color: #1e293b;
 }
 
+.jankx-review-form__order {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.jankx-review-form__order-label {
+    font-weight: 600;
+}
+
 .jankx-review-form__stars {
     display: flex;
     align-items: center;

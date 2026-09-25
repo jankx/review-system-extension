@@ -63,6 +63,14 @@ class ReviewsMyReviewsBlock extends Block
                 if (!empty($postTitle)) {
                     $output .= '<p class="jankx-review-meta">' . esc_html(__('Đánh giá cho:', 'jankx')) . ' <a href="' . esc_url($postUrl) . '">' . esc_html($postTitle) . '</a></p>';
                 }
+
+                $orderId = (int) get_comment_meta($comment->comment_ID, ReviewSettings::META_ORDER, true);
+                if ($orderId > 0 && class_exists('\Jankx\Extensions\ReviewSystem\Services\PurchaseService')) {
+                    $order = (new \Jankx\Extensions\ReviewSystem\Services\PurchaseService())->getOrderForUser($userId, $orderId);
+                    if ($order) {
+                        $output .= '<p class="jankx-review-meta jankx-review-meta--order">' . esc_html(__('Đơn hàng:', 'jankx')) . ' <strong>#' . esc_html($order->order_number ?: $order->id) . '</strong></p>';
+                    }
+                }
                 $output .= '</div>';
 
                 $pros = $service->getPros($comment->comment_ID);

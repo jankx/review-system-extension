@@ -50,55 +50,110 @@ class PurchaseService
             return false;
         }
 
-        $userId  = (int) apply_filters('jankx/review_system/purchase_user_id', $userId, $productId);
+        return (bool) apply_filters(
+            'jankx/review_system/has_completed_purchase',
+            !empty($this->getCompletedOrderIds($userId, $productId)),
+            (int) $userId,
+            (int) $productId
+        );
+    }
+
+    /**
+     * Danh sách id của các đơn hàng completed/done của $userId có chứa sản phẩm
+     * $productId, sắp xếp đơn mới nhất trước.
+     *
+     * @return int[]
+     */
+    public function getCompletedOrderIds(int $userId, int $productId): array
+    {
+        if ($userId < 1 || $productId < 1) {
+            return [];
+        }
+
         $productId = (int) $productId;
+        $userId = (int) apply_filters('jankx/review_system/purchase_user_id', (int) $userId, $productId);
 
         if (!$this->isEcommerceActive()) {
-            return (bool) apply_filters('jankx/review_system/has_completed_purchase', false, $userId, $productId);
+            return (array) apply_filters('jankx/review_system/completed_order_ids', [], $userId, $productId);
         }
 
         global $wpdb;
         $ordersTable = $wpdb->prefix . self::ORDER_TABLE;
         $orderPostsTable = $wpdb->prefix . self::ORDER_POSTS_TABLE;
         $statuses = $this->completedStatuses ?: ['completed'];
+        $placeholders = implode(',', array_fill(0, count($statuses), '%s'));
+
+        $ids = [];
 
         // 1) Khớp qua bảng liên kết jankx_order_posts (nhanh, đúng chuẩn ecommerce).
-        $placeholders = implode(',', array_fill(0, count($statuses), '%s'));
-        $sql = "SELECT COUNT(*)
-                FROM {$ordersTable} o
-                INNER JOIN {$orderPostsTable} p ON p.order_id = o.id
-                WHERE o.customer_id = %d
-                  AND o.status IN ({$placeholders})
-                  AND p.post_id = %d";
-        $values = array_merge([$userId], $statuses, [$productId]);
-        $count = (int) $wpdb->get_var($wpdb->prepare($sql, ...$values));
-
-        if ($count > 0) {
-            return (bool) apply_filters('jankx/review_system/has_completed_purchase', true, $userId, $productId);
+        $linked = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT o.id
+                 FROM {$ordersTable} o
+                 INNER JOIN {$orderPostsTable} p ON p.order_id = o.id
+                 WHERE o.customer_id = %d
+                   AND o.status IN ({$placeholders})
+                   AND p.post_id = %d
+                 ORDER BY o.created_at DESC, o.id DESC LIMIT 500",
+                array_merge([$userId], $statuses, [$productId])
+            )
+        );
+        foreach ($linked as $orderId) {
+            $ids[(int) $orderId] = (int) $orderId;
         }
 
         // 2) Fallback: quét items JSON khi đơn hàng chưa có bản ghi order_posts.
-        $itemsSql = $wpdb->prepare(
-            "SELECT items FROM {$ordersTable}
-             WHERE customer_id = %d AND status IN ({$placeholders})
-             ORDER BY created_at DESC LIMIT 200",
-            array_merge([$userId], $statuses)
+        $orderRows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id, items FROM {$ordersTable}
+                 WHERE customer_id = %d AND status IN ({$placeholders})
+                 ORDER BY created_at DESC, id DESC LIMIT 500",
+                array_merge([$userId], $statuses)
+            )
         );
-        $rows = $wpdb->get_col($itemsSql);
-
-        foreach ($rows as $itemsJson) {
-            $items = json_decode((string) $itemsJson, true);
+        foreach ($orderRows as $row) {
+            $items = json_decode((string) $row->items, true);
             if (!is_array($items)) {
                 continue;
             }
             foreach ($items as $item) {
                 if ((int) ($item['product_id'] ?? 0) === $productId) {
-                    return (bool) apply_filters('jankx/review_system/has_completed_purchase', true, $userId, $productId);
+                    $ids[(int) $row->id] = (int) $row->id;
+                    break;
                 }
             }
         }
 
-        return (bool) apply_filters('jankx/review_system/has_completed_purchase', false, $userId, $productId);
+        return (array) apply_filters(
+            'jankx/review_system/completed_order_ids',
+            array_values($ids),
+            $userId,
+            $productId
+        );
+    }
+
+    /**
+     * Lấy thông tin một đơn hàng completed thuộc về $userId.
+     */
+    public function getOrderForUser(int $userId, int $orderId): ?\stdClass
+    {
+        if ($userId < 1 || $orderId < 1 || !$this->isEcommerceActive()) {
+            return null;
+        }
+
+        global $wpdb;
+        $statuses = $this->completedStatuses ?: ['completed'];
+        $placeholders = implode(',', array_fill(0, count($statuses), '%s'));
+
+        $row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}" . self::ORDER_TABLE . "
+                 WHERE customer_id = %d AND id = %d AND status IN ({$placeholders}) LIMIT 1",
+                array_merge([$userId, $orderId], $statuses)
+            )
+        );
+
+        return $row ?: null;
     }
 
     /**

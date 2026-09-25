@@ -18,6 +18,7 @@ class Review
     protected $commentId = 0;
     protected $postId = 0;
     protected $userId = 0;
+    protected $orderId = 0;
     protected $rating = 0;
     protected $content = '';
     protected $pros = [];
@@ -47,6 +48,9 @@ class Review
         }
         if (isset($data['user_id'])) {
             $this->userId = (int) $data['user_id'];
+        }
+        if (isset($data['order_id'])) {
+            $this->orderId = (int) $data['order_id'];
         }
         if (isset($data['rating'])) {
             $this->rating = (int) $data['rating'];
@@ -140,6 +144,17 @@ class Review
     public function setUserId(int $userId): self
     {
         $this->userId = $userId;
+        return $this;
+    }
+
+    public function getOrderId(): int
+    {
+        return $this->orderId;
+    }
+
+    public function setOrderId(int $orderId): self
+    {
+        $this->orderId = $orderId;
         return $this;
     }
 
@@ -265,6 +280,7 @@ class Review
             'comment_id'   => $this->commentId,
             'post_id'      => $this->postId,
             'user_id'      => $this->userId,
+            'order_id'     => $this->orderId,
             'rating'       => $this->rating,
             'content'      => $this->content,
             'pros'         => $this->pros,
@@ -283,6 +299,7 @@ class Review
         return [
             'id'     => $this->id,
             'rating' => $this->rating,
+            'order_id' => $this->orderId,
             'pros'   => $this->pros,
             'cons'   => $this->cons,
             'author' => $this->authorName,

@@ -13,6 +13,7 @@ class ReviewSettings
 
     const META_PROS = '_jankx_review_pros';
     const META_CONS = '_jankx_review_cons';
+    const META_ORDER = '_jankx_review_order';
 
     public function getOption(string $key, $default = null)
     {

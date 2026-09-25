@@ -18,7 +18,79 @@
         var submit = form.querySelector('.jankx-review-form__button');
         var spinner = form.querySelector('.jankx-review-form__spinner');
         var message = form.querySelector('.jankx-review-form__message');
+        var orderInput = form.querySelector('.jankx-review-form__order-input');
+        var orderLabel = form.querySelector('.jankx-review-form__order-label');
         var selected = 0;
+
+        var orders = (jankxReviewForm && Array.isArray(jankxReviewForm.orders)) ? jankxReviewForm.orders : [];
+        var orderIndex = -1;
+
+        if (orderInput && orderLabel && orders.length > 0) {
+            var currentOrderId = parseInt(orderInput.value, 10) || parseInt(jankxReviewForm.defaultOrderId, 10) || 0;
+            for (var i = 0; i < orders.length; i++) {
+                if (parseInt(orders[i].id, 10) === currentOrderId) {
+                    orderIndex = i;
+                    break;
+                }
+            }
+            if (orderIndex < 0) {
+                orderIndex = 0;
+            }
+            orderInput.value = orders[orderIndex].id;
+            orderLabel.textContent = orders[orderIndex].label;
+        }
+
+        function selectOrder(index) {
+            if (!orderInput || !orderLabel || index < 0 || index >= orders.length) {
+                return;
+            }
+            orderIndex = index;
+            orderInput.value = orders[index].id;
+            orderLabel.textContent = orders[index].label;
+        }
+
+        function resetForm() {
+            selected = 0;
+            if (stars) {
+                stars.forEach(function (star) {
+                    star.classList.remove('is-active', 'is-hover');
+                    star.removeAttribute('aria-disabled');
+                });
+            }
+            if (ratingText) {
+                ratingText.textContent = '';
+            }
+            [textarea, pros, cons].forEach(function (field) {
+                if (field) {
+                    field.disabled = false;
+                    field.value = '';
+                }
+            });
+            if (submit) {
+                submit.disabled = false;
+                submit.textContent = submit.dataset.label || submit.textContent;
+            }
+        }
+
+        function completeAll() {
+            if (stars) {
+                stars.forEach(function (star) {
+                    star.setAttribute('aria-disabled', 'true');
+                });
+            }
+            if (textarea) {
+                textarea.disabled = true;
+            }
+            if (pros) {
+                pros.disabled = true;
+            }
+            if (cons) {
+                cons.disabled = true;
+            }
+            if (submit) {
+                submit.disabled = true;
+            }
+        }
 
         function setRating(value) {
             selected = value;
@@ -43,9 +115,11 @@
                 });
             });
             star.addEventListener('mouseleave', function () {
-                stars.forEach(function (s) {
-                    s.classList.remove('is-hover');
-                });
+                if (selected < 1) {
+                    stars.forEach(function (s) {
+                        s.classList.remove('is-hover');
+                    });
+                }
             });
         });
 
@@ -69,6 +143,17 @@
 
         function i18n(key) {
             return (jankxReviewForm && jankxReviewForm.i18n && jankxReviewForm.i18n[key]) || '';
+        }
+
+        function advanceAfterSuccess() {
+            if (orderInput && orders.length > 0 && orderIndex >= 0 && orderIndex < orders.length - 1) {
+                selectOrder(orderIndex + 1);
+                resetForm();
+                showMessage(i18n('nextOrder') || 'Cảm ơn bạn! Sẵn sàng đánh giá cho đơn hàng tiếp theo.', 'success');
+                return;
+            }
+            completeAll();
+            showMessage(i18n('success') || 'Cảm ơn bạn đã đánh giá!', 'success');
         }
 
         if (!submit) {
@@ -97,6 +182,9 @@
                 cons: cons ? cons.value : ''
             };
 
+            if (orderInput) {
+                payload.order_id = parseInt(orderInput.value, 10) || 0;
+            }
             if (nameInput) {
                 payload.author_name = nameInput.value;
             }
@@ -122,23 +210,17 @@
                     setLoading(false);
 
                     if (result.ok && result.data && result.data.success) {
-                        showMessage(result.data.message || i18n('success'), 'success');
-                        stars.forEach(function (star) {
-                            star.setAttribute('aria-disabled', 'true');
-                        });
-                        if (textarea) {
-                            textarea.disabled = true;
-                        }
-                        if (submit) {
-                            submit.disabled = true;
-                        }
-                    } else {
-                        var msg = (result.data && result.data.message) || i18n('error');
-                        if (result.status === 403 || result.status === 409) {
-                            msg = result.data.message || i18n('alreadyRated');
-                        }
-                        showMessage(msg);
+                        advanceAfterSuccess();
+                        return;
                     }
+
+                    if (result.status === 409 && orderInput) {
+                        advanceAfterSuccess();
+                        return;
+                    }
+
+                    var msg = (result.data && result.data.message) || i18n('error');
+                    showMessage(msg);
                 })
                 .catch(function () {
                     setLoading(false);

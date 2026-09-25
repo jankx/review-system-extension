@@ -138,6 +138,27 @@ class ReviewController
 
         $summary = $this->service->getSummary($postId);
 
+        $eligibleOrders = [];
+        $requestedOrderId = (int) (isset($_GET['order_id']) ? $_GET['order_id'] : 0);
+        if ($this->settings->requirePurchase() && is_user_logged_in()) {
+            $purchaseService = new PurchaseService();
+            $orderIds = $purchaseService->getCompletedOrderIds(get_current_user_id(), $postId);
+            $reviewedOrderIds = $this->service->getRepository()->findReviewedOrderIdsForPost($orderIds, $postId);
+            $eligibleOrderIds = array_values(array_diff($orderIds, $reviewedOrderIds));
+
+            foreach ($eligibleOrderIds as $orderId) {
+                $order = $purchaseService->getOrderForUser(get_current_user_id(), $orderId);
+                if (!$order) {
+                    continue;
+                }
+                $eligibleOrders[] = [
+                    'id'    => (int) $order->id,
+                    'order_number' => (string) ($order->order_number ?? $order->id),
+                    'label' => $this->formatOrderLabel($order),
+                ];
+            }
+        }
+
         return new \WP_REST_Response([
             'success'                  => true,
             'summary'                  => $summary,
@@ -146,6 +167,10 @@ class ReviewController
             'purchase_satisfied'       => $this->hasCompletedPurchase($postId),
             'current_user_reviewed'    => $this->hasUserReviewed($postId),
             'can_review'               => $this->canSubmitForPost($postId),
+            'eligible_orders'          => $eligibleOrders,
+            'default_order_id'         => in_array($requestedOrderId, array_column($eligibleOrders, 'id'), true)
+                ? $requestedOrderId
+                : (int) ($eligibleOrders[0]['id'] ?? 0),
         ]);
     }
 
@@ -170,38 +195,55 @@ class ReviewController
             ], 403);
         }
 
-        if (!$this->canSubmitForPost($postId)) {
-            if ($this->settings->requirePurchase() && !$this->hasCompletedPurchase($postId)) {
-                $message = __('Bạn chỉ có thể đánh giá sau khi mua sản phẩm thành công.', 'jankx');
-            } elseif (!is_user_logged_in()) {
-                $message = __('Vui lòng đăng nhập để đánh giá.', 'jankx');
-            } else {
-                $message = __('Bạn chưa đủ điều kiện để đánh giá sản phẩm này.', 'jankx');
+        $userId = get_current_user_id();
+        $orderId = 0;
+
+        if ($this->settings->requirePurchase()) {
+            $purchaseService = new PurchaseService();
+            $orderId = (int) $request->get_param('order_id');
+            $orderIds = $purchaseService->getCompletedOrderIds($userId, $postId);
+
+            if ($orderId < 1 || !in_array($orderId, $orderIds, true)) {
+                return new \WP_REST_Response([
+                    'success' => false,
+                    'message' => __('Bạn chỉ có thể đánh giá sau khi mua sản phẩm thành công.', 'jankx'),
+                ], 403);
             }
+
+            if ($this->hasReviewedOrder($orderId, $postId)) {
+                return new \WP_REST_Response([
+                    'success' => false,
+                    'message' => __('Đơn hàng này đã được đánh giá.', 'jankx'),
+                ], 409);
+            }
+        } elseif (!$this->canSubmitForPost($postId)) {
+            $message = is_user_logged_in()
+                ? __('Bạn chưa đủ điều kiện để đánh giá sản phẩm này.', 'jankx')
+                : __('Vui lòng đăng nhập để đánh giá.', 'jankx');
 
             return new \WP_REST_Response([
                 'success' => false,
                 'message' => $message,
             ], 403);
+        } else {
+            $hasReviewed = $this->hasUserReviewed($postId, $userId);
+            if ($hasReviewed) {
+                return new \WP_REST_Response([
+                    'success'  => false,
+                    'message'  => __('Bạn đã đánh giá bài viết này rồi.', 'jankx'),
+                    'summary'  => $this->service->getSummary($postId),
+                ], 409);
+            }
         }
 
         $rating = max(1, min($this->service->getMaxRating(), (int) $request->get_param('rating')));
 
-        $userId = get_current_user_id();
         $authorEmail = sanitize_email((string) $request->get_param('author_email'));
         $authorIp = $this->getClientIp();
 
-        $hasReviewed = $this->hasUserReviewed($postId, $userId, $authorEmail, $userId > 0 ? '' : $authorIp);
-        if ($hasReviewed) {
-            return new \WP_REST_Response([
-                'success'  => false,
-                'message'  => __('Bạn đã đánh giá bài viết này rồi.', 'jankx'),
-                'summary'  => $this->service->getSummary($postId),
-            ], 409);
-        }
-
         $review = $this->service->submit([
             'post_id'      => $postId,
+            'order_id'     => $orderId,
             'rating'       => $rating,
             'content'      => (string) $request->get_param('review'),
             'pros'         => (string) $request->get_param('pros'),
@@ -314,6 +356,22 @@ class ReviewController
     {
         $review = $this->service->getRepository()->findExisting($postId, (int) $userId, $authorEmail, $authorIp);
         return $review !== null;
+    }
+
+    protected function hasReviewedOrder(int $orderId, int $postId): bool
+    {
+        return $this->service->getRepository()->findByOrderAndPost((int) $orderId, (int) $postId) !== null;
+    }
+
+    protected function formatOrderLabel(\stdClass $order): string
+    {
+        $number = !empty($order->order_number) ? (string) $order->order_number : (string) $order->id;
+        $date = !empty($order->created_at) ? date('d/m/Y', strtotime($order->created_at)) : '';
+        $total = isset($order->total) ? number_format((float) $order->total, 0, ',', '.') . 'đ' : '';
+
+        $parts = array_values(array_filter(['#' . $number, $date, $total]));
+
+        return trim(sprintf(__('Đơn hàng %s', 'jankx'), implode(' · ', $parts)));
     }
 
     /**
@@ -438,6 +496,12 @@ class ReviewController
             'post_id'      => [
                 'required'          => true,
                 'type'              => 'integer',
+                'sanitize_callback' => 'absint',
+            ],
+            'order_id'     => [
+                'required'          => false,
+                'type'              => 'integer',
+                'minimum'           => 0,
                 'sanitize_callback' => 'absint',
             ],
             'rating'       => [

@@ -50,6 +50,7 @@ class ReviewService
         $postId = (int) ($data['post_id'] ?? 0);
         $rating = max(1, min($this->getMaxRating(), (int) ($data['rating'] ?? 0)));
         $userId = (int) ($data['user_id'] ?? get_current_user_id());
+        $orderId = (int) ($data['order_id'] ?? 0);
 
         $content = sanitize_textarea_field((string) ($data['content'] ?? ''));
         if ($content === '') {
@@ -81,6 +82,10 @@ class ReviewService
             return new Review();
         }
 
+        if ($orderId > 0) {
+            update_comment_meta($commentId, ReviewSettings::META_ORDER, $orderId);
+        }
+
         $repository = new RatingRepository();
         $repository->save($commentId, $postId, $rating);
 
@@ -92,6 +97,10 @@ class ReviewService
         }
 
         $review = $this->repository->upsertFromComment($commentId);
+        if ($review && $orderId > 0 && $review->getOrderId() !== $orderId) {
+            $review->setOrderId($orderId);
+            $this->repository->update($review);
+        }
 
         do_action('jankx/star_rating/submitted', $commentId, $postId, $rating, null);
         do_action('jankx/review_system/review_submitted', $review, $postId, $rating, $data);

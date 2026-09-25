@@ -12,6 +12,10 @@
         "showDistribution": { "type": "boolean", "default": true },
         "maxStars": { "type": "number", "default": 5 }
     },
+    "styles": [
+        { "name": "default", "label": "Mặc định", "isDefault": true },
+        { "name": "badge", "label": "Huy hiệu (Nhỏ gọn)" }
+    ],
     "supports": {
         "html": false,
         "align": ["wide", "full"],

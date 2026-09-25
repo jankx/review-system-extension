@@ -13,7 +13,7 @@ use Jankx\Extensions\ReviewSystem\Repositories\DatabaseReviewRepository;
  */
 class ReviewDatabaseInstaller
 {
-    const DB_VERSION = '1.0.1';
+    const DB_VERSION = '1.1.0';
 
     const OPTION_VERSION = 'jankx_reviews_db_version';
 
@@ -57,6 +57,7 @@ class ReviewDatabaseInstaller
             comment_id bigint(20) UNSIGNED NOT NULL DEFAULT 0,
             post_id bigint(20) UNSIGNED NOT NULL DEFAULT 0,
             user_id bigint(20) UNSIGNED NOT NULL DEFAULT 0,
+            order_id bigint(20) UNSIGNED NOT NULL DEFAULT 0,
             rating tinyint(3) UNSIGNED NOT NULL DEFAULT 0,
             content text,
             pros text,
@@ -71,6 +72,7 @@ class ReviewDatabaseInstaller
             KEY post_id (post_id),
             KEY comment_id (comment_id),
             KEY user_id (user_id),
+            KEY order_id (order_id),
             KEY status (status),
             KEY rating (rating),
             KEY created_at (created_at),

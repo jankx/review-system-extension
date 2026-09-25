@@ -30,6 +30,56 @@ class DatabaseReviewRepository implements ReviewRepositoryInterface
         return \Jankx\Extensions\ReviewSystem\Models\Review::fromRow($row ?: null);
     }
 
+    /**
+     * Tìm review của người dùng cho một đơn hàng cụ thể.
+     */
+    public function findByOrderAndPost(int $orderId, int $postId): ?\Jankx\Extensions\ReviewSystem\Models\Review
+    {
+        if ($orderId < 1 || $postId < 1) {
+            return null;
+        }
+
+        global $wpdb;
+
+        $row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM {$this->tableName()} WHERE order_id = %d AND post_id = %d LIMIT 1",
+                $orderId,
+                $postId
+            ),
+            ARRAY_A
+        );
+
+        return \Jankx\Extensions\ReviewSystem\Models\Review::fromRow($row ?: null);
+    }
+
+    /**
+     * Trả về các order_id trong danh sách đã có review cho $postId.
+     *
+     * @param int[] $orderIds
+     * @return int[]
+     */
+    public function findReviewedOrderIdsForPost(array $orderIds, int $postId): array
+    {
+        $orderIds = array_values(array_filter(array_map('absint', $orderIds)));
+        if (empty($orderIds) || $postId < 1) {
+            return [];
+        }
+
+        global $wpdb;
+        $placeholders = implode(',', array_fill(0, count($orderIds), '%d'));
+
+        $rows = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT DISTINCT order_id FROM {$this->tableName()}
+                 WHERE post_id = %d AND order_id IN ({$placeholders})",
+                array_merge([$postId], $orderIds)
+            )
+        );
+
+        return array_map('absint', $rows);
+    }
+
     public function findByComment(int $commentId): ?\Jankx\Extensions\ReviewSystem\Models\Review
     {
         global $wpdb;
@@ -265,6 +315,7 @@ class DatabaseReviewRepository implements ReviewRepositoryInterface
 
         $pros = get_comment_meta($commentId, ReviewSettings::META_PROS, true);
         $cons = get_comment_meta($commentId, ReviewSettings::META_CONS, true);
+        $orderId = (int) get_comment_meta($commentId, ReviewSettings::META_ORDER, true);
 
         $review = $this->findByComment($commentId);
         if (!$review) {
@@ -276,6 +327,7 @@ class DatabaseReviewRepository implements ReviewRepositoryInterface
         $review
             ->setPostId($postId)
             ->setUserId((int) $comment->user_id)
+            ->setOrderId($orderId)
             ->setRating($rating)
             ->setContent($comment->comment_content)
             ->setPros(is_array($pros) ? $pros : [])
@@ -316,6 +368,7 @@ class DatabaseReviewRepository implements ReviewRepositoryInterface
             'comment_id'   => $review->getCommentId(),
             'post_id'      => $review->getPostId(),
             'user_id'      => $review->getUserId(),
+            'order_id'     => $review->getOrderId(),
             'rating'       => $review->getRating(),
             'content'      => $review->getContent(),
             'pros'         => wp_json_encode(array_values($review->getPros())),
@@ -331,12 +384,12 @@ class DatabaseReviewRepository implements ReviewRepositoryInterface
 
     protected function buildFormats(): array
     {
-        return ['%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'];
+        return ['%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'];
     }
 
     protected function buildUpdateFormats(): array
     {
-        return ['%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'];
+        return ['%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'];
     }
 
     protected function mapCommentStatus(string $approved): string

@@ -27,6 +27,19 @@ interface ReviewRepositoryInterface
     public function findByComment(int $commentId): ?Review;
 
     /**
+     * Find the review a user left for a specific order + post.
+     */
+    public function findByOrderAndPost(int $orderId, int $postId): ?Review;
+
+    /**
+     * Return the order ids from $orderIds that already have a review for $postId.
+     *
+     * @param int[] $orderIds
+     * @return int[]
+     */
+    public function findReviewedOrderIdsForPost(array $orderIds, int $postId): array;
+
+    /**
      * Find reviews for a post with optional criteria.
      *
      * @return Review[]

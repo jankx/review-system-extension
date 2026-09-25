@@ -3,8 +3,7 @@
 namespace Jankx\Extensions\ReviewSystem\Blocks;
 
 use Jankx\Extensions\ReviewSystem\Block;
-use Jankx\Extensions\ReviewSystem\Services\ReviewSettings;
-use Jankx\Extensions\CommentRating\Rating\RatingRepository;
+use Jankx\Extensions\ReviewSystem\Repositories\DatabaseReviewRepository;
 
 class ReviewsPendingBlock extends Block
 {
@@ -19,6 +18,7 @@ class ReviewsPendingBlock extends Block
         global $wpdb;
         $userId = get_current_user_id();
         $ordersTable = $wpdb->prefix . 'jankx_orders';
+        $repository = new DatabaseReviewRepository();
 
         $wrapperAttrs = get_block_wrapper_attributes([
             'class' => 'jankx-reviews-section jankx-reviews-pending',
@@ -28,7 +28,7 @@ class ReviewsPendingBlock extends Block
         $output .= '<h3 class="jankx-section-title">' . esc_html__('Sản phẩm chờ đánh giá', 'jankx') . '</h3>';
 
         $orders = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$ordersTable} WHERE customer_id = %d AND status IN ('completed', 'done') ORDER BY created_at DESC",
+            "SELECT * FROM {$ordersTable} WHERE customer_id = %d AND status IN ('completed', 'done') ORDER BY created_at DESC, id DESC",
             $userId
         ));
 
@@ -38,7 +38,7 @@ class ReviewsPendingBlock extends Block
             return $output;
         }
 
-        // Collect all pending items across all orders
+        // Mỗi dòng = một (đơn hàng, sản phẩm) chưa được đánh giá.
         $pendingItems = [];
 
         foreach ($orders as $order) {
@@ -47,31 +47,25 @@ class ReviewsPendingBlock extends Block
                 continue;
             }
 
+            $seen = [];
             foreach ($items as $item) {
                 $productId = (int) ($item['product_id'] ?? 0);
-                if (!$productId) {
+                if (!$productId || isset($seen[$productId])) {
+                    continue;
+                }
+                $seen[$productId] = true;
+
+                // Đã đánh giá cho đơn hàng này rồi?
+                if ($repository->findByOrderAndPost((int) $order->id, $productId) !== null) {
                     continue;
                 }
 
-                // Check if user already reviewed this product
-                $existing = get_comments([
-                    'post_id' => $productId,
-                    'user_id' => $userId,
-                    'status'  => 'approve',
-                    'meta_key' => RatingRepository::COMMENT_RATING_KEY,
-                    'count'   => true,
-                ]);
-
-                if ($existing > 0) {
-                    continue; // Already reviewed
-                }
-
                 $pendingItems[] = [
-                    'order'     => $order,
+                    'order'      => $order,
                     'product_id' => $productId,
-                    'name'      => $item['name'] ?? get_the_title($productId),
-                    'type'      => $item['product_type'] ?? get_post_type($productId),
-                    'quantity'  => (int) ($item['quantity'] ?? 1),
+                    'name'       => $item['name'] ?? get_the_title($productId),
+                    'type'       => $item['product_type'] ?? get_post_type($productId),
+                    'quantity'   => (int) ($item['quantity'] ?? 1),
                     'unit_price' => (float) ($item['unit_price'] ?? 0),
                 ];
             }
@@ -89,18 +83,16 @@ class ReviewsPendingBlock extends Block
                     ? number_format($item['unit_price'], 0, ',', '.') . 'đ'
                     : '';
 
-                // Link to product page, scroll to comment form
-                $reviewUrl = $productUrl . '#reviewform';
+                // Link tới form đánh giá trên trang sản phẩm, preselect đúng đơn hàng.
+                $reviewUrl = trailingslashit($productUrl) . '?order_id=' . (int) $item['order']->id . '#reviewform';
 
                 $output .= '<div class="jankx-review-item-card">';
                 $output .= '<div class="jankx-review-item-info">';
 
-                // Product name as link
                 $output .= '<a href="' . esc_url($productUrl) . '" class="jankx-review-item-name">';
                 $output .= esc_html($item['name']);
                 $output .= '</a>';
 
-                // Meta info
                 $output .= '<div class="jankx-review-item-meta">';
                 if ($productType) {
                     $output .= '<span class="jankx-review-item-type">' . esc_html($productType) . '</span>';
@@ -108,13 +100,12 @@ class ReviewsPendingBlock extends Block
                 if ($price) {
                     $output .= '<span class="jankx-review-item-price">' . esc_html($price) . '</span>';
                 }
-                $output .= '<span class="jankx-review-item-order">' . sprintf(__('Đơn hàng #%s', 'jankx'), esc_html($item['order']->id)) . '</span>';
+                $output .= '<span class="jankx-review-item-order">' . sprintf(__('Đơn hàng #%s', 'jankx'), esc_html($item['order']->order_number ?: $item['order']->id)) . '</span>';
                 $output .= '<span class="jankx-review-item-date">' . esc_html(date('d/m/Y', strtotime($item['order']->created_at))) . '</span>';
                 $output .= '</div>';
 
                 $output .= '</div>';
 
-                // Review button
                 $output .= '<div class="jankx-review-item-actions">';
                 $output .= '<a href="' . esc_url($reviewUrl) . '" class="jankx-btn jankx-btn-primary">';
                 $output .= '<span class="dashicons dashicons-edit"></span> ' . esc_html__('Viết đánh giá', 'jankx');

@@ -28,9 +28,39 @@ class ReviewSummaryBlock
         $distribution = $service->getRatingDistribution($postId);
         $showDistribution = $attributes['showDistribution'] ?? true;
 
+        $className = 'wp-block-jankx-review-summary';
+        if (!empty($attributes['className'])) {
+            $className .= ' ' . $attributes['className'];
+        }
+
+        $isBadge = strpos($className, 'is-style-badge') !== false;
+
         ob_start();
         ?>
-        <div class="wp-block-jankx-review-summary">
+        <div class="<?php echo esc_attr($className); ?>">
+            <?php if ($isBadge) :
+                $statusText = __('Bình thường', 'jankx');
+                $statusClass = 'normal';
+                if ($average >= 4.0) {
+                    $statusText = __('Tuyệt vời', 'jankx');
+                    $statusClass = 'excellent';
+                } elseif ($average >= 3.0) {
+                    $statusText = __('Hài lòng', 'jankx');
+                    $statusClass = 'good';
+                } elseif ($average < 3.0 && $average > 0) {
+                    $statusText = __('Không hài lòng', 'jankx');
+                    $statusClass = 'poor';
+                }
+            ?>
+            <div class="review-system-summary-badge" role="img" aria-label="<?php printf(esc_attr__('Điểm trung bình %.1f trên %d từ %d đánh giá', 'jankx'), $average, $max, $count); ?>">
+                <div class="review-system-summary-badge__status review-system-summary-badge__status--<?php echo esc_attr($statusClass); ?>">
+                    <?php echo esc_html($statusText); ?>
+                </div>
+                <div class="review-system-summary-badge__count">
+                    <?php printf(esc_html('%d Đánh giá', 'jankx'), $count); ?>
+                </div>
+            </div>
+            <?php else : ?>
             <div class="review-system-summary" role="img" aria-label="<?php printf(esc_attr__('Điểm trung bình %.1f trên %d từ %d đánh giá', 'jankx'), $average, $max, $count); ?>">
                 <div class="review-system-summary__main">
                     <div class="review-system-summary__score">
@@ -64,6 +94,7 @@ class ReviewSummaryBlock
                 </div>
                 <?php endif; ?>
             </div>
+            <?php endif; ?>
         </div>
         <?php
         return ob_get_clean();
