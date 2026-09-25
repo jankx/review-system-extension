@@ -17,7 +17,6 @@ class ReviewSummary
     public function register(): void
     {
         add_shortcode('review_summary', [$this, 'shortcode']);
-        add_action('comment_form_top', [$this, 'renderAboveForm']);
     }
 
     public function shortcode(array $atts = []): string
@@ -28,20 +27,6 @@ class ReviewSummary
         ob_start();
         $this->render($postId);
         return ob_get_clean();
-    }
-
-    public function renderAboveForm(): void
-    {
-        if (!$this->settings->isEnabled()) {
-            return;
-        }
-
-        $postId = $this->getPostId();
-        if (!$postId || !$this->settings->isPostTypeSupported(get_post_type($postId))) {
-            return;
-        }
-
-        $this->render($postId);
     }
 
     public function render(int $postId): void

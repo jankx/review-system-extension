@@ -67,8 +67,9 @@ class ReviewSystemExtension extends AbstractExtension
         add_action('deleted_comment', [$this, 'removeSyncedReview'], 20, 1);
         add_action('edit_comment', [$this, 'resyncReviewFromComment'], 20, 1);
 
-        $reviewForm = new Frontend\ReviewForm($this->settings);
-        $reviewForm->register();
+        // Form đánh giá bây giờ là một block kéo-thả (jankx/review-form), KHÔNG
+        // còn tự động chèn vào comment form nữa.
+        add_filter('jankx/comment_rating/show_in_comment_form', '__return_false');
 
         $reviewDisplay = new Frontend\ReviewDisplay($this->settings);
         $reviewDisplay->register();
@@ -89,9 +90,6 @@ class ReviewSystemExtension extends AbstractExtension
         // Register MyAccount sub-page BEFORE syncSubPagePosts runs (priority 100).
         // Must use this hook like other extensions, NOT 'init' priority 110.
         add_action('jankx/my_account/register_sub_pages', [$this, 'registerAccountSubPage']);
-
-        // Change comment form ID to 'reviewform' so anchor links work.
-        add_filter('comment_form_defaults', [$this, 'setCommentFormId']);
 
         // Hook into star rating submissions to sync with review system.
         add_action('jankx/star_rating/submitted', [$this, 'on_star_rating_submitted'], 10, 4);
@@ -180,15 +178,6 @@ class ReviewSystemExtension extends AbstractExtension
     }
 
     /**
-     * Set comment form ID to 'reviewform' for anchor linking.
-     */
-    public function setCommentFormId(array $defaults): array
-    {
-        $defaults['form_id'] = 'reviewform';
-        return $defaults;
-    }
-
-    /**
      * Handle star rating submissions.
      *
      * When a user submits a star rating via the RatingSubmission API,
@@ -237,6 +226,7 @@ class ReviewSystemExtension extends AbstractExtension
             'jankx/reviews-my-reviews' => Blocks\ReviewsMyReviewsBlock::class,
             'jankx/reviews-pending' => Blocks\ReviewsPendingBlock::class,
             'jankx/reviews-completed' => Blocks\ReviewsCompletedBlock::class,
+            'jankx/review-form' => Blocks\ReviewFormBlock::class,
         ];
 
         foreach (glob($blocksDir . '/*', GLOB_ONLYDIR) as $blockDir) {

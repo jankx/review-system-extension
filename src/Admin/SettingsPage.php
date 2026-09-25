@@ -65,6 +65,19 @@ class SettingsPage
         ));
 
         $section->addField(FieldFactory::create(
+            ReviewSettings::OPTION_REQUIRE_PURCHASE,
+            __('Require Successful Purchase', 'jankx'),
+            'switch',
+            [
+                'on' => __('On', 'jankx'),
+                'off' => __('Off', 'jankx'),
+                'value' => $this->settings->getOption(ReviewSettings::OPTION_REQUIRE_PURCHASE, 1),
+                'default' => 1,
+                'description' => __('Only show the review form to logged-in users whose order for this product reached the completed state (base-ecommerce compatible)', 'jankx'),
+            ]
+        ));
+
+        $section->addField(FieldFactory::create(
             ReviewSettings::OPTION_SHOW_PROS,
             __('Show Pros Field', 'jankx'),
             'switch',

@@ -9,6 +9,7 @@ class ReviewSettings
     const OPTION_SHOW_CONS = 'review_system_show_cons';
     const OPTION_POST_TYPES = 'review_system_post_types';
     const OPTION_SORT_DEFAULT = 'review_system_sort_default';
+    const OPTION_REQUIRE_PURCHASE = 'review_system_require_purchase';
 
     const META_PROS = '_jankx_review_pros';
     const META_CONS = '_jankx_review_cons';
@@ -61,6 +62,15 @@ class ReviewSettings
     public function getDefaultSort(): string
     {
         return sanitize_text_field($this->getOption(self::OPTION_SORT_DEFAULT, 'newest'));
+    }
+
+    /**
+     * Chỉ hiển thị form đánh giá khi người dùng đã mua hàng thành công
+     * (đơn hàng ở trạng thái completed / success).
+     */
+    public function requirePurchase(): bool
+    {
+        return (bool) $this->getOption(self::OPTION_REQUIRE_PURCHASE, 1);
     }
 
     public function isPostTypeSupported(string $postType): bool

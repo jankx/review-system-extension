@@ -4,6 +4,7 @@ namespace Jankx\Extensions\ReviewSystem\Rest;
 
 use Jankx\Extensions\ReviewSystem\Contracts\ReviewRepositoryInterface;
 use Jankx\Extensions\ReviewSystem\Models\Review;
+use Jankx\Extensions\ReviewSystem\Services\PurchaseService;
 use Jankx\Extensions\ReviewSystem\Services\ReviewService;
 use Jankx\Extensions\ReviewSystem\Services\ReviewSettings;
 
@@ -141,7 +142,10 @@ class ReviewController
             'success'                  => true,
             'summary'                  => $summary,
             'post_type_supported'      => $this->settings->isPostTypeSupported(get_post_type($postId)),
+            'require_purchase'         => $this->settings->requirePurchase(),
+            'purchase_satisfied'       => $this->hasCompletedPurchase($postId),
             'current_user_reviewed'    => $this->hasUserReviewed($postId),
+            'can_review'               => $this->canSubmitForPost($postId),
         ]);
     }
 
@@ -163,6 +167,21 @@ class ReviewController
             return new \WP_REST_Response([
                 'success' => false,
                 'message' => __('Post type này không hỗ trợ đánh giá.', 'jankx'),
+            ], 403);
+        }
+
+        if (!$this->canSubmitForPost($postId)) {
+            if ($this->settings->requirePurchase() && !$this->hasCompletedPurchase($postId)) {
+                $message = __('Bạn chỉ có thể đánh giá sau khi mua sản phẩm thành công.', 'jankx');
+            } elseif (!is_user_logged_in()) {
+                $message = __('Vui lòng đăng nhập để đánh giá.', 'jankx');
+            } else {
+                $message = __('Bạn chưa đủ điều kiện để đánh giá sản phẩm này.', 'jankx');
+            }
+
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => $message,
             ], 403);
         }
 
@@ -275,6 +294,14 @@ class ReviewController
 
     public function createPermission(): bool
     {
+        if (!$this->settings->requirePurchase() && !is_user_logged_in()) {
+            return (bool) apply_filters('jankx/review_system/rest_can_submit', true);
+        }
+
+        if (!is_user_logged_in()) {
+            return false;
+        }
+
         return (bool) apply_filters('jankx/review_system/rest_can_submit', true);
     }
 
@@ -287,6 +314,35 @@ class ReviewController
     {
         $review = $this->service->getRepository()->findExisting($postId, (int) $userId, $authorEmail, $authorIp);
         return $review !== null;
+    }
+
+    /**
+     * Kiểm tra người dùng hiện tại có thể đánh giá bài viết này không
+     * (đăng nhập + đã mua thành công khi yêu cầu mua hàng được bật).
+     */
+    protected function canSubmitForPost(int $postId): bool
+    {
+        $userId = get_current_user_id();
+        if ($userId < 1 && $this->settings->requirePurchase()) {
+            return false;
+        }
+
+        if (!$this->settings->requirePurchase()) {
+            return (bool) apply_filters('jankx/review_system/can_review', true, $userId, $postId);
+        }
+
+        $hasPurchased = $this->hasCompletedPurchase($postId);
+
+        return (bool) apply_filters('jankx/review_system/can_review', $hasPurchased, $userId, $postId);
+    }
+
+    protected function hasCompletedPurchase(int $postId): bool
+    {
+        if ($postId < 1 || !$this->settings->requirePurchase()) {
+            return true;
+        }
+
+        return (new PurchaseService())->hasCompletedPurchase(get_current_user_id(), $postId);
     }
 
     protected function getClientIp(): string

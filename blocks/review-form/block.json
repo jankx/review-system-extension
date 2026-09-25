@@ -1,0 +1,64 @@
+{
+    "$schema": "https://schemas.wp.org/trunk/block.json",
+    "apiVersion": 3,
+    "name": "jankx/review-form",
+    "title": "Review Form (Đánh giá của bạn)",
+    "category": "jankx",
+    "icon": "star-filled",
+    "description": "Form 'Đánh giá của bạn' kéo-thả vào layout. Gửi review qua REST API; chỉ hiển thị khi người dùng đã mua sản phẩm thành công (có thể cấu hình).",
+    "keywords": ["review", "rating", "danh gia", "form", "feedback"],
+    "textdomain": "jankx",
+    "usesContext": ["postId", "postType"],
+    "attributes": {
+        "postId": {
+            "type": "number",
+            "default": 0
+        },
+        "title": {
+            "type": "string",
+            "default": ""
+        },
+        "maxRating": {
+            "type": "number",
+            "default": 0
+        },
+        "showReviewField": {
+            "type": "boolean",
+            "default": true
+        },
+        "showProsCons": {
+            "type": "boolean",
+            "default": false
+        },
+        "showLoginPrompt": {
+            "type": "boolean",
+            "default": true
+        },
+        "requirePurchase": {
+            "type": "boolean"
+        },
+        "submitText": {
+            "type": "string",
+            "default": ""
+        }
+    },
+    "supports": {
+        "html": false,
+        "align": ["left", "center", "right", "wide", "full"],
+        "spacing": {
+            "margin": true,
+            "padding": true
+        },
+        "color": {
+            "text": true,
+            "background": true
+        },
+        "typography": {
+            "fontSize": true,
+            "lineHeight": true
+        }
+    },
+    "editorScript": "file:./build/index.js",
+    "style": "file:./build/style.css",
+    "editorStyle": "file:./build/editor.css"
+}
