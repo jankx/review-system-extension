@@ -37,7 +37,7 @@ class PurchaseService
     public function isEcommerceActive(): bool
     {
         return class_exists('\Jankx\Extensions\Ecommerce\EcommerceExtension')
-            && function_exists('wpdb')
+            && class_exists('wpdb')
             && $this->orderTableExists();
     }
 
