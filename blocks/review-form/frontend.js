@@ -22,6 +22,7 @@
         var orderLabel = form.querySelector('.jankx-review-form__order-label');
         var mediaZone = form.querySelector('.comment-media-upload-zone');
         var selected = 0;
+        var originallabel = submit ? (submit.dataset.label || submit.textContent) : '';
 
         var orders = (jankxReviewForm && Array.isArray(jankxReviewForm.orders)) ? jankxReviewForm.orders : [];
         var orderIndex = -1;
@@ -98,7 +99,7 @@
             });
             if (submit) {
                 submit.disabled = false;
-                submit.textContent = submit.dataset.label || submit.textContent;
+                submit.textContent = originallabel;
             }
         }
 
@@ -158,24 +159,195 @@
                 return;
             }
             message.textContent = text;
+            if (!text) {
+                message.className = 'jankx-review-form__message';
+                return;
+            }
             message.className = 'jankx-review-form__message is-' + (type || 'error');
         }
 
         function setLoading(isLoading) {
             if (submit) {
                 submit.disabled = isLoading;
-                submit.textContent = isLoading ? i18n('submitting') : submit.dataset.label || submit.textContent;
+                submit.textContent = isLoading ? i18n('submitting') : originallabel;
             }
             if (spinner) {
-                spinner.style.display = isLoading ? '' : 'none';
+                spinner.classList.toggle('is-active', isLoading);
             }
+        }
+
+        function formatDate(value) {
+            if (!value) {
+                return '';
+            }
+            var d = new Date(String(value).replace(' ', 'T'));
+            if (isNaN(d.getTime())) {
+                return String(value);
+            }
+            var mm = String(d.getMonth() + 1).padStart(2, '0');
+            var dd = String(d.getDate()).padStart(2, '0');
+            return dd + '/' + mm + '/' + d.getFullYear();
+        }
+
+        function buildReviewItem(review) {
+            var max = parseInt(form.querySelector('.jankx-review-form__stars').getAttribute('data-max-rating'), 10) || 5;
+            var rating = parseInt(review.rating, 10) || 0;
+            var stars = '';
+            for (var i = 1; i <= max; i++) {
+                stars += '<span class="review-system-star' + (i <= rating ? ' is-active' : '') + '">★</span>';
+            }
+            var avatar = review.avatar ? '<img class="review-system-review-avatar" src="' + review.avatar + '" alt="" />' : '';
+            var extras = '';
+            if ((review.pros && review.pros.length) || (review.cons && review.cons.length)) {
+                extras += '<div class="review-system-comment-extras">';
+                if (review.pros && review.pros.length) {
+                    extras += '<div class="review-system-pros-list"><strong class="review-system-label review-system-label--pros">Điểm mạnh</strong><ul>';
+                    review.pros.forEach(function (pro) {
+                        extras += '<li>' + pro + '</li>';
+                    });
+                    extras += '</ul></div>';
+                }
+                if (review.cons && review.cons.length) {
+                    extras += '<div class="review-system-cons-list"><strong class="review-system-label review-system-label--cons">Điểm yếu</strong><ul>';
+                    review.cons.forEach(function (con) {
+                        extras += '<li>' + con + '</li>';
+                    });
+                    extras += '</ul></div>';
+                }
+                extras += '</div>';
+            }
+            var item = document.createElement('li');
+            item.className = 'comment jankx-appended-review';
+            item.id = 'comment-' + (review.id || Math.floor(Date.now() / 1000));
+            item.innerHTML =
+                '<div class="wp-block-columns">' +
+                '<div class="wp-block-column" style="flex-basis:40px">' + avatar + '</div>' +
+                '<div class="wp-block-column">' +
+                '<span class="wp-block-comment-author-name">' + (review.author || '') + '</span>' +
+                '<div class="wp-block-group" style="margin-top:0;margin-bottom:0"><span class="wp-block-comment-date">' + formatDate(review.date) + '</span></div>' +
+                '<div class="review-system-stars">' + stars + '<span class="review-system-rating-text">' + rating + '/' + max + '</span></div>' +
+                '<div class="wp-block-comment-content">' + (review.content || '') + extras + '</div>' +
+                '</div>' +
+                '</div>';
+            return item;
+        }
+
+        function appendReview(review) {
+            if (!review) {
+                return;
+            }
+            var list = form.ownerDocument.querySelector('.wp-block-comment-template');
+            if (!list) {
+                var wrapper = form.ownerDocument.querySelector('.wp-block-comments, #comments, .comments-area');
+                if (wrapper) {
+                    list = document.createElement('ol');
+                    list.className = 'wp-block-comment-template';
+                    var formEl = wrapper.querySelector('.wp-block-post-comments-form');
+                    if (formEl) {
+                        wrapper.insertBefore(list, formEl);
+                    } else {
+                        wrapper.appendChild(list);
+                    }
+                }
+                if (!list) {
+                    list = form.parentNode;
+                }
+            }
+            if (list) {
+                list.insertBefore(buildReviewItem(review), list.firstChild);
+            }
+        }
+
+        function updateSummary(summary) {
+            if (!summary) {
+                return;
+            }
+            var host = form.ownerDocument;
+            var summaryRoot = host.querySelector('.wp-block-jankx-review-summary');
+            if (!summaryRoot) {
+                return;
+            }
+            var numberEl = summaryRoot.querySelector('.review-system-summary__number');
+            var countEl = summaryRoot.querySelector('.review-system-summary__count');
+
+            if (countEl) {
+                countEl.textContent = parseInt(summary.count, 10) + ' đánh giá';
+            }
+            if (summaryRoot.querySelector('.review-system-summary__number')) {
+                if (numberEl) {
+                    numberEl.textContent = Number(summary.average).toFixed(1);
+                }
+                var maxEl = summaryRoot.querySelector('.review-system-summary__max');
+                var maxRating = maxEl ? parseInt((maxEl.textContent || '/5').replace('/', ''), 10) : 5;
+                var activeStars = summaryRoot.querySelectorAll('.review-system-summary__stars .review-system-star');
+                if (activeStars) {
+                    Array.prototype.forEach.call(activeStars, function (star, i) {
+                        star.classList.toggle('is-active', (i + 1) <= Math.round(Number(summary.average)));
+                    });
+                }
+                var distRows = summaryRoot.querySelectorAll('.review-system-dist-row');
+                if (distRows.length && summary.distribution) {
+                    Array.prototype.forEach.call(distRows, function (row) {
+                        var rating = parseInt(row.getAttribute('data-rating'), 10) || 0;
+                        var num = (summary.distribution && summary.distribution[rating]) || 0;
+                        var count = parseInt(summary.count, 10) || 0;
+                        var pct = count > 0 ? Math.round(num / count * 100) : 0;
+                        row.querySelector('.review-system-dist-fill').style.width = pct + '%';
+                        row.querySelector('.review-system-dist-count').textContent = num;
+                    });
+                }
+            } else {
+                summaryRoot.innerHTML = '' +
+                    '<div class="review-system-summary" role="img">' +
+                    '<div class="review-system-summary__main">' +
+                    '<div class="review-system-summary__score">' +
+                    '<span class="review-system-summary__number">' + Number(summary.average).toFixed(1) + '</span>' +
+                    '<span class="review-system-summary__max">/' + maxRating() + '</span>' +
+                    '</div>' +
+                    '<div class="review-system-summary__stars">' + buildSummaryStars(Number(summary.average)) + '</div>' +
+                    '<div class="review-system-summary__count">' + parseInt(summary.count, 10) + ' đánh giá</div>' +
+                    '</div>' +
+                    '</div>';
+            }
+        }
+
+        function maxRating() {
+            return parseInt(form.querySelector('.jankx-review-form__stars').getAttribute('data-max-rating'), 10) || 5;
+        }
+
+        function buildSummaryStars(average) {
+            var html = '';
+            var max = maxRating();
+            for (var i = 1; i <= max; i++) {
+                html += '<span class="review-system-star' + (i <= Math.round(average) ? ' is-active' : '') + '">★</span>';
+            }
+            return html;
+        }
+
+        function completeAll() {
+            form.classList.add('jankx-review-form--completed');
+            var formBody = form.querySelector('.jankx-review-form__body');
+            if (formBody) {
+                formBody.style.display = 'none';
+            }
+            var successNotice = form.querySelector('.jankx-review-form__success-notice');
+            if (!successNotice) {
+                successNotice = document.createElement('div');
+                successNotice.className = 'jankx-review-form__success-notice';
+                form.appendChild(successNotice);
+            }
+            successNotice.style.display = 'block';
+            successNotice.textContent = i18n('success') || 'Cảm ơn bạn đã đánh giá!';
         }
 
         function i18n(key) {
             return (jankxReviewForm && jankxReviewForm.i18n && jankxReviewForm.i18n[key]) || '';
         }
 
-        function advanceAfterSuccess() {
+        function advanceAfterSuccess(review, summary) {
+            appendReview(review);
+            updateSummary(summary);
+
             if (orderInput && orders.length > 0 && orderIndex >= 0 && orderIndex < orders.length - 1) {
                 selectOrder(orderIndex + 1);
                 resetForm();
@@ -183,7 +355,6 @@
                 return;
             }
             completeAll();
-            showMessage(i18n('success') || 'Cảm ơn bạn đã đánh giá!', 'success');
         }
 
         if (!submit) {
@@ -250,12 +421,12 @@
                     setLoading(false);
 
                     if (result.ok && result.data && result.data.success) {
-                        advanceAfterSuccess();
+                        advanceAfterSuccess(result.data.review, result.data.summary);
                         return;
                     }
 
                     if (result.status === 409 && orderInput) {
-                        advanceAfterSuccess();
+                        advanceAfterSuccess(result.data && result.data.review, result.data && result.data.summary);
                         return;
                     }
 

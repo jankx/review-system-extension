@@ -246,12 +246,12 @@ class ReviewFormBlock extends Block
 
                 <div class="jankx-review-form__submit">
                     <button class="jankx-review-form__button" type="button"><?php echo esc_html($submitText); ?></button>
-                    <span class="jankx-review-form__spinner" style="display:none;">
+                    <span class="jankx-review-form__spinner">
                         <span class="spinner is-active"></span>
                     </span>
                 </div>
 
-                <div class="jankx-review-form__message" style="display:none;"></div>
+                <div class="jankx-review-form__message"></div>
             </div>
         </div>
         <?php

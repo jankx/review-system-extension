@@ -21,7 +21,7 @@ class ReviewSummaryBlock
         $count = $service->getCount($postId);
 
         if ($count === 0) {
-            return '<p>' . esc_html__('Chưa có đánh giá.', 'jankx') . '</p>';
+            return '<div class="wp-block-jankx-review-summary"><p>' . esc_html__('Chưa có đánh giá.', 'jankx') . '</p></div>';
         }
 
         $max = $service->getMaxRating();
