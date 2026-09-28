@@ -53,6 +53,10 @@ class ReviewSummaryBlock
                 }
             ?>
             <div class="review-system-summary-badge" role="img" aria-label="<?php printf(esc_attr__('Điểm trung bình %.1f trên %d từ %d đánh giá', 'jankx'), $average, $max, $count); ?>">
+                <div class="review-system-summary-badge__score">
+                    <span class="review-system-summary-badge__number"><?php echo esc_html(number_format($average, 1)); ?></span>
+                    <span class="review-system-summary-badge__max"><?php printf(esc_html('/ %d', 'jankx'), $max); ?></span>
+                </div>
                 <div class="review-system-summary-badge__status review-system-summary-badge__status--<?php echo esc_attr($statusClass); ?>">
                     <?php echo esc_html($statusText); ?>
                 </div>

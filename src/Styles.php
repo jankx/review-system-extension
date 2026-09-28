@@ -28,6 +28,57 @@ class Styles
     public static function getCss(): string
     {
         return <<<'CSS'
+.review-system-summary-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    margin-bottom: 16px;
+    line-height: 1.2;
+}
+.review-system-summary-badge__score {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+}
+.review-system-summary-badge__number {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1e293b;
+}
+.review-system-summary-badge__max {
+    font-size: 12px;
+    color: #94a3b8;
+}
+.review-system-summary-badge__status {
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+.review-system-summary-badge__status--excellent {
+    background: #dcfce7;
+    color: #15803d;
+}
+.review-system-summary-badge__status--good {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+.review-system-summary-badge__status--normal {
+    background: #fef9c3;
+    color: #a16207;
+}
+.review-system-summary-badge__status--poor {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+.review-system-summary-badge__count {
+    font-size: 13px;
+    color: #64748b;
+}
 .review-system-summary {
     display: flex;
     gap: 24px;
