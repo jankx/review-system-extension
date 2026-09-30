@@ -110,7 +110,7 @@ class SettingsPage
             [
                 'options' => $this->settings->getPostTypesForSelect(),
                 'value' => $this->settings->getPostTypes(),
-                'default' => ['tour', 'experience', 'place', 'product', 'post', 'page'],
+                'default' => ['tour', 'place', 'product', 'post', 'page'],
                 'layout' => 'vertical',
                 'description' => __('Select post types that support reviews', 'jankx'),
             ]

@@ -48,7 +48,7 @@ class ReviewSettings
     {
         $saved = $this->getOption(self::OPTION_POST_TYPES, null);
         if ($saved === null || (is_array($saved) && empty($saved))) {
-            $saved = ['tour', 'experience', 'place', 'product', 'service', 'post', 'page'];
+            $saved = ['tour', 'place', 'product', 'service', 'post', 'page'];
         }
         if (!is_array($saved)) {
             $saved = [$saved];

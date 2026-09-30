@@ -125,11 +125,10 @@ class ReviewsPendingBlock extends Block
     protected function getTypeLabel(string $type): string
     {
         $labels = [
-            'tour'       => __('Tour', 'jankx'),
-            'experience' => __('Trải nghiệm', 'jankx'),
-            'place'      => __('Địa điểm', 'jankx'),
-            'product'    => __('Sản phẩm', 'jankx'),
-            'service'    => __('Dịch vụ', 'jankx'),
+            'tour'    => __('Tour', 'jankx'),
+            'place'   => __('Địa điểm', 'jankx'),
+            'product' => __('Sản phẩm', 'jankx'),
+            'service' => __('Dịch vụ', 'jankx'),
         ];
 
         return $labels[$type] ?? ucfirst($type);

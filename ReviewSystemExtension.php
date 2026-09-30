@@ -201,7 +201,7 @@ class ReviewSystemExtension extends AbstractExtension
     {
         // The RatingSubmission handler already saves via RatingRepository,
         // which updates jankx_rating_average, jankx_rating_count, and
-        // syncs legacy meta (_tour_rating, _experience_rating, _place_rating).
+        // syncs legacy meta (_tour_rating, _place_rating).
         //
         // If review-system's ReviewSummary block or shortcode is used on
         // the page, it reads from jankx_rating_average/jankx_rating_count
